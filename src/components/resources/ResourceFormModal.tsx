@@ -19,6 +19,7 @@ import {
 import { ResourceType, ResourceSection } from '../../types';
 import {
   extractYoutubeVideoId,
+  extractYoutubePlaylistId,
   fetchYoutubeMetadata,
   getYoutubeThumbnail,
 } from '../../utils/youtubeUtils';
@@ -118,15 +119,19 @@ export const ResourceFormModal: React.FC = () => {
   // Execute YouTube auto-fetch
   const executeYoutubeFetch = async (targetUrl: string, manual = false) => {
     const videoId = extractYoutubeVideoId(targetUrl);
-    if (!videoId) {
+    const playlistId = extractYoutubePlaylistId(targetUrl);
+
+    if (!videoId && !playlistId) {
       if (manual) {
-        setFetchError('No valid YouTube video ID found in URL.');
+        setFetchError('No valid YouTube video or playlist found in URL.');
       }
       return;
     }
 
+    const uniqueId = playlistId || videoId || '';
+
     // If already fetched this exact ID and not manual trigger, skip
-    if (videoId === lastFetchedVideoId && !manual && fetchSuccess) {
+    if (uniqueId === lastFetchedVideoId && !manual && fetchSuccess) {
       return;
     }
 
@@ -139,14 +144,14 @@ export const ResourceFormModal: React.FC = () => {
       if (meta) {
         setTitle(meta.title);
         setChannel(meta.channel);
-        setThumbnail(meta.thumbnail);
-        setThumbnailFallback(meta.thumbnailFallback);
+        setThumbnail(meta.thumbnail || '');
+        setThumbnailFallback(meta.thumbnailFallback || '');
         setDurationMinutes(meta.durationMinutes);
         setExactDurationSeconds(meta.durationSeconds);
-        setLastFetchedVideoId(meta.videoId);
+        setLastFetchedVideoId(meta.playlistId || meta.videoId);
         setFetchSuccess(true);
         setType('youtube');
-      } else {
+      } else if (videoId) {
         // Fallback: we still have the video ID, so thumbnail is guaranteed
         const directThumb = getYoutubeThumbnail(videoId, 'maxres');
         setThumbnail(directThumb);
@@ -156,13 +161,15 @@ export const ResourceFormModal: React.FC = () => {
         setType('youtube');
       }
     } catch (err: any) {
-      // Fallback: we still have the video ID, so thumbnail is guaranteed
-      const directThumb = getYoutubeThumbnail(videoId, 'maxres');
-      setThumbnail(directThumb);
-      setThumbnailFallback(getYoutubeThumbnail(videoId, 'hq'));
-      setLastFetchedVideoId(videoId);
-      setFetchSuccess(true);
-      setType('youtube');
+      if (videoId) {
+        // Fallback: we still have the video ID, so thumbnail is guaranteed
+        const directThumb = getYoutubeThumbnail(videoId, 'maxres');
+        setThumbnail(directThumb);
+        setThumbnailFallback(getYoutubeThumbnail(videoId, 'hq'));
+        setLastFetchedVideoId(videoId);
+        setFetchSuccess(true);
+        setType('youtube');
+      }
     } finally {
       setIsFetchingYoutube(false);
     }
@@ -174,7 +181,7 @@ export const ResourceFormModal: React.FC = () => {
     setFetchSuccess(false);
     setFetchError(null);
 
-    const detectedId = extractYoutubeVideoId(newUrl);
+    const detectedId = extractYoutubeVideoId(newUrl) || extractYoutubePlaylistId(newUrl);
     if (detectedId) {
       setType('youtube');
 
@@ -190,7 +197,7 @@ export const ResourceFormModal: React.FC = () => {
 
   // Smart detection for the Title field: if user accidentally pastes/types URL in the Title field
   const handleTitleChange = (newTitle: string) => {
-    const detectedId = extractYoutubeVideoId(newTitle);
+    const detectedId = extractYoutubeVideoId(newTitle) || extractYoutubePlaylistId(newTitle);
     const isUrl = /^https?:\/\//i.test(newTitle.trim()) || !!detectedId;
 
     if (isUrl) {
@@ -208,7 +215,7 @@ export const ResourceFormModal: React.FC = () => {
 
   const handleTitlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const text = e.clipboardData.getData('text');
-    const detectedId = extractYoutubeVideoId(text);
+    const detectedId = extractYoutubeVideoId(text) || extractYoutubePlaylistId(text);
     if (detectedId || /^https?:\/\//i.test(text.trim())) {
       e.preventDefault();
       const cleanUrl = text.trim();
@@ -242,16 +249,18 @@ export const ResourceFormModal: React.FC = () => {
   if (!isResourceFormOpen) return null;
 
   const goalModules = modules.filter((m) => m.goalId === goalId);
-  const detectedVideoId = extractYoutubeVideoId(url);
+  const detectedVideoId = extractYoutubeVideoId(url) || extractYoutubePlaylistId(url);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !url.trim() || !goalId || !moduleId) return;
 
     const videoId = type === 'youtube' ? extractYoutubeVideoId(url) || undefined : undefined;
+    const playlistId = type === 'youtube' ? extractYoutubePlaylistId(url) || undefined : undefined;
     const finalThumbnail =
       thumbnail ||
-      (videoId ? getYoutubeThumbnail(videoId, 'maxres') : undefined);
+      (videoId ? getYoutubeThumbnail(videoId, 'maxres') : undefined) ||
+      'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=320&q=80';
 
     const durationSeconds =
       exactDurationSeconds && Math.round(exactDurationSeconds / 60) === durationMinutes
@@ -270,6 +279,8 @@ export const ResourceFormModal: React.FC = () => {
         thumbnail: finalThumbnail,
         durationSeconds,
         videoId: videoId || resourceToEdit.videoId,
+        playlistId: playlistId || resourceToEdit.playlistId,
+        isPlaylist: !!playlistId || resourceToEdit.isPlaylist,
         description: description.trim(),
       });
     } else {
@@ -284,6 +295,8 @@ export const ResourceFormModal: React.FC = () => {
         thumbnail: finalThumbnail,
         durationSeconds,
         videoId,
+        playlistId,
+        isPlaylist: !!playlistId,
         status: 'not_started',
         currentTime: 0,
         description: description.trim(),

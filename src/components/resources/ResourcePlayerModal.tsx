@@ -145,12 +145,18 @@ export const ResourcePlayerModal: React.FC = () => {
         <div className="flex-1 overflow-y-auto">
           {/* Video or Document Container */}
           <div className="relative aspect-video w-full bg-slate-950 flex items-center justify-center">
-            {resource.type === 'youtube' && resource.videoId ? (
+            {resource.type === 'youtube' && (resource.videoId || resource.playlistId) ? (
               <iframe
                 key={iframeKey}
-                src={`https://www.youtube-nocookie.com/embed/${resource.videoId}?start=${Math.floor(
-                  localTime
-                )}&autoplay=${isPlaying ? 1 : 0}&enablejsapi=1&rel=0`}
+                src={
+                  resource.playlistId
+                    ? `https://www.youtube-nocookie.com/embed/videoseries?list=${resource.playlistId}&autoplay=${
+                        isPlaying ? 1 : 0
+                      }&enablejsapi=1`
+                    : `https://www.youtube-nocookie.com/embed/${resource.videoId}?start=${Math.floor(
+                        localTime
+                      )}&autoplay=${isPlaying ? 1 : 0}&enablejsapi=1&rel=0`
+                }
                 title={resource.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

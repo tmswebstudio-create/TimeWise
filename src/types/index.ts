@@ -79,6 +79,8 @@ export interface Resource {
   thumbnail?: string;
   durationSeconds: number; // e.g. 2120 = 35m 20s
   videoId?: string; // YouTube video ID (e.g. "k32voqQhODc")
+  playlistId?: string; // YouTube playlist ID (e.g. "PL4Gr5tOAPJi...")
+  isPlaylist?: boolean;
   status: ResourceStatus;
   currentTime: number; // playback position in seconds
   lastWatchedAt?: string;

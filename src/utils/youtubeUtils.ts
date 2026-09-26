@@ -4,6 +4,7 @@
 
 export interface YoutubeVideoMetadata {
   videoId: string;
+  playlistId?: string;
   title: string;
   channel: string;
   durationSeconds: number;
@@ -11,6 +12,7 @@ export interface YoutubeVideoMetadata {
   thumbnail: string;
   thumbnailFallback: string;
   description?: string;
+  isPlaylist?: boolean;
 }
 
 /**
@@ -41,6 +43,30 @@ export const extractYoutubeVideoId = (url: string): string | null => {
   // Handle case where user directly typed/pasted an 11-character video ID
   if (/^[\w-]{11}$/.test(cleanUrl)) {
     return cleanUrl;
+  }
+
+  return null;
+};
+
+/**
+ * Extracts standard YouTube playlist ID (34-character list parameter) from various URL formats.
+ */
+export const extractYoutubePlaylistId = (url: string): string | null => {
+  if (!url || typeof url !== 'string') return null;
+  const cleanUrl = url.trim();
+
+  // If user pasted a whole string containing a YouTube link
+  const urlMatch = cleanUrl.match(/https?:\/\/[^\s"'<>]+/);
+  const target = urlMatch ? urlMatch[0] : cleanUrl;
+
+  const listMatch = target.match(/[&?]list=([^&]+)/);
+  if (listMatch && listMatch[1]) {
+    return listMatch[1];
+  }
+
+  const playlistMatch = target.match(/youtube\.com\/playlist\?list=([^&]+)/);
+  if (playlistMatch && playlistMatch[1]) {
+    return playlistMatch[1];
   }
 
   return null;
@@ -261,6 +287,59 @@ export const fetchYoutubeDuration = (videoId: string): Promise<number> => {
  * - HD Thumbnail (with fallback)
  */
 export const fetchYoutubeMetadata = async (urlOrId: string): Promise<YoutubeVideoMetadata | null> => {
+  // Check if it is a playlist first
+  const playlistId = extractYoutubePlaylistId(urlOrId);
+  if (playlistId) {
+    let title = '';
+    let channel = '';
+    let oembedThumb = '';
+
+    try {
+      const fetchPromises = [
+        fetch(`https://noembed.com/embed?url=https://www.youtube.com/playlist?list=${playlistId}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
+        fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/playlist?list=${playlistId}&format=json`)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
+      ];
+
+      const results = await Promise.all(fetchPromises);
+      for (const data of results) {
+        if (data) {
+          if (!title && data.title) title = data.title;
+          if (!channel && data.author_name) channel = data.author_name;
+          if (!oembedThumb && data.thumbnail_url) oembedThumb = data.thumbnail_url;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (!title) {
+      title = `YouTube Playlist (${playlistId})`;
+    }
+    if (!channel) {
+      channel = 'YouTube Creator';
+    }
+
+    // Default duration for whole playlist (e.g., 2 hours / 120 minutes) which the user can easily customize
+    const durationSeconds = 7200;
+    const durationMinutes = 120;
+
+    return {
+      videoId: '',
+      playlistId,
+      title,
+      channel,
+      durationSeconds,
+      durationMinutes,
+      thumbnail: oembedThumb || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=320&q=80',
+      thumbnailFallback: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=320&q=80',
+      isPlaylist: true,
+    };
+  }
+
   const videoId = extractYoutubeVideoId(urlOrId);
   if (!videoId) return null;
 

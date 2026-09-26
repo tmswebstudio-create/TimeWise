@@ -177,7 +177,7 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
             {resource.type === 'youtube' ? (
               <>
                 <Youtube className="w-3.5 h-3.5 text-red-500 fill-red-500" />
-                <span>YouTube</span>
+                <span>{resource.isPlaylist ? 'YT Playlist' : 'YouTube'}</span>
               </>
             ) : resource.type === 'documentation' ? (
               <>
