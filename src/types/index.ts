@@ -67,6 +67,15 @@ export type ResourceType = 'youtube' | 'article' | 'documentation' | 'reference'
 export type ResourceSection = 'learn' | 'practice' | 'review';
 export type ResourceStatus = 'not_started' | 'in_progress' | 'completed' | 'saved';
 
+export interface PlaylistVideo {
+  videoId: string;
+  title: string;
+  channel?: string;
+  durationSeconds?: number;
+  thumbnail?: string;
+  index: number;
+}
+
 export interface Resource {
   id: string;
   goalId: string;
@@ -81,6 +90,9 @@ export interface Resource {
   videoId?: string; // YouTube video ID (e.g. "k32voqQhODc")
   playlistId?: string; // YouTube playlist ID (e.g. "PL4Gr5tOAPJi...")
   isPlaylist?: boolean;
+  playlistVideos?: PlaylistVideo[];
+  currentPlaylistIndex?: number;
+  completedVideoIds?: string[];
   status: ResourceStatus;
   currentTime: number; // playback position in seconds
   lastWatchedAt?: string;

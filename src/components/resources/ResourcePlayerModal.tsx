@@ -42,7 +42,36 @@ export const ResourcePlayerModal: React.FC = () => {
       setNotesDraft(resource.notes || '');
       setIsPlaying(false);
     }
-  }, [resource]);
+  }, [resource, resource?.currentPlaylistIndex]);
+
+  const activeIndex = resource?.currentPlaylistIndex ?? 0;
+  const hasPlaylistVideos = !!(resource?.playlistVideos && resource.playlistVideos.length > 0);
+  const activeVideo = hasPlaylistVideos && resource?.playlistVideos ? resource.playlistVideos[activeIndex] : null;
+
+  const duration = activeVideo ? (activeVideo.durationSeconds || 300) : (resource?.durationSeconds || 1800);
+  const progressPct = Math.min(100, Math.round((localTime / duration) * 100));
+  const isCompleted = resource?.status === 'completed' || progressPct >= 90;
+
+  const isActiveVideoCompleted = !!(resource?.isPlaylist && activeVideo && (resource.completedVideoIds || []).includes(activeVideo.videoId));
+
+  const handleVideoCompletion = () => {
+    if (!resource) return;
+    if (resource.isPlaylist && activeVideo) {
+      const alreadyCompleted = resource.completedVideoIds || [];
+      if (!alreadyCompleted.includes(activeVideo.videoId)) {
+        const nextCompleted = [...alreadyCompleted, activeVideo.videoId];
+        const playlistLen = resource.playlistVideos?.length || 1;
+        const isAllDone = nextCompleted.length >= playlistLen;
+        
+        updateResource(resource.id, {
+          completedVideoIds: nextCompleted,
+          status: isAllDone ? 'completed' : 'in_progress',
+        });
+      }
+    } else {
+      markResourceCompleted(resource.id);
+    }
+  };
 
   // Live timer simulation when playing
   useEffect(() => {
@@ -51,10 +80,10 @@ export const ResourcePlayerModal: React.FC = () => {
       interval = setInterval(() => {
         setLocalTime((prev) => {
           const next = prev + 1;
-          const maxDur = resource.durationSeconds || 1000;
+          const maxDur = duration;
           if (next >= maxDur) {
             setIsPlaying(false);
-            markResourceCompleted(resource.id);
+            handleVideoCompletion();
             return maxDur;
           }
           // Update persistence every 5 seconds
@@ -68,16 +97,22 @@ export const ResourcePlayerModal: React.FC = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isPlaying, resource]);
+  }, [isPlaying, resource, duration, activeVideo]);
 
   if (!isResourcePlayerOpen || !resource) return null;
 
   const goal = goals.find((g) => g.id === resource.goalId);
   const moduleItem = modules.find((m) => m.id === resource.moduleId);
 
-  const duration = resource.durationSeconds || 1800;
-  const progressPct = Math.min(100, Math.round((localTime / duration) * 100));
-  const isCompleted = resource.status === 'completed' || progressPct >= 90;
+  const selectPlaylistVideo = (idx: number) => {
+    updateResource(resource.id, {
+      currentPlaylistIndex: idx,
+      currentTime: 0,
+    });
+    setLocalTime(0);
+    setIsPlaying(true);
+    setIframeKey((prev) => prev + 1);
+  };
 
   const handleScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newSeconds = parseInt(e.target.value, 10);
@@ -147,9 +182,13 @@ export const ResourcePlayerModal: React.FC = () => {
           <div className="relative aspect-video w-full bg-slate-950 flex items-center justify-center">
             {resource.type === 'youtube' && (resource.videoId || resource.playlistId) ? (
               <iframe
-                key={iframeKey}
+                key={`${iframeKey}-${activeIndex}`}
                 src={
-                  resource.playlistId
+                  resource.playlistVideos && resource.playlistVideos.length > 0
+                    ? `https://www.youtube-nocookie.com/embed/${
+                        resource.playlistVideos[activeIndex].videoId
+                      }?start=${Math.floor(localTime)}&autoplay=${isPlaying ? 1 : 0}&enablejsapi=1&rel=0`
+                    : resource.playlistId
                     ? `https://www.youtube-nocookie.com/embed/videoseries?list=${resource.playlistId}&autoplay=${
                         isPlaying ? 1 : 0
                       }&enablejsapi=1`
@@ -157,7 +196,7 @@ export const ResourcePlayerModal: React.FC = () => {
                         localTime
                       )}&autoplay=${isPlaying ? 1 : 0}&enablejsapi=1&rel=0`
                 }
-                title={resource.title}
+                title={activeVideo ? activeVideo.title : resource.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 className="w-full h-full border-0"
@@ -188,11 +227,11 @@ export const ResourcePlayerModal: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div>
                 <h2 className="text-base sm:text-lg font-heading font-semibold text-slate-900 leading-snug">
-                  {resource.title}
+                  {activeVideo ? activeVideo.title : resource.title}
                 </h2>
-                {resource.channel && (
-                  <p className="text-xs text-slate-500 mt-0.5">By {resource.channel}</p>
-                )}
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {activeVideo ? `Video #${activeIndex + 1} of Playlist` : resource.channel ? `By ${resource.channel}` : 'YouTube Video'}
+                </p>
               </div>
 
               {/* Status Badges */}
@@ -260,14 +299,31 @@ export const ResourcePlayerModal: React.FC = () => {
                     <span>Create Task</span>
                   </button>
 
-                  {!isCompleted && (
-                    <button
-                      onClick={() => markResourceCompleted(resource.id)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Mark as Completed</span>
-                    </button>
+                  {resource.isPlaylist && activeVideo ? (
+                    isActiveVideoCompleted ? (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Video Completed</span>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={handleVideoCompletion}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Mark Video Completed</span>
+                      </button>
+                    )
+                  ) : (
+                    !isCompleted && (
+                      <button
+                        onClick={handleVideoCompletion}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Mark as Completed</span>
+                      </button>
+                    )
                   )}
                 </div>
               </div>
@@ -321,6 +377,85 @@ export const ResourcePlayerModal: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Playlist Videos List */}
+            {resource.isPlaylist && resource.playlistVideos && resource.playlistVideos.length > 0 && (
+              <div className="space-y-3 pt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                    <span>Playlist Videos</span>
+                    <span className="px-1.5 py-0.5 text-[10px] bg-slate-100 text-slate-600 rounded-full font-medium">
+                      {activeIndex + 1} / {resource.playlistVideos.length}
+                    </span>
+                  </h4>
+                </div>
+
+                <div className="max-h-[300px] overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-100 bg-slate-50/50">
+                  {resource.playlistVideos.map((video, idx) => {
+                    const isCurrent = idx === activeIndex;
+                    const isVideoCompleted = (resource.completedVideoIds || []).includes(video.videoId);
+                    return (
+                      <button
+                        key={`${video.videoId}-${idx}`}
+                        onClick={() => selectPlaylistVideo(idx)}
+                        className={`w-full text-left p-3.5 flex gap-4 transition-colors items-center hover:bg-slate-100/70 ${
+                          isCurrent ? 'bg-blue-50/70 hover:bg-blue-50 border-l-4 border-l-blue-600 pl-2.5' : ''
+                        }`}
+                      >
+                        {/* Video Thumbnail (Enlarged) */}
+                        <div className="relative w-28 h-16 shrink-0 rounded-lg overflow-hidden bg-slate-200 shadow-sm border border-slate-200">
+                          <img
+                            src={video.thumbnail || `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg`}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg`;
+                            }}
+                          />
+                          {/* Index Indicator (Top Left) */}
+                          <div className="absolute top-1 left-1 bg-slate-900/85 px-1 py-0.5 rounded text-[9px] font-bold text-white leading-none">
+                            #{idx + 1}
+                          </div>
+                          {/* Duration Pill (Bottom Right) */}
+                          <div className="absolute bottom-1 right-1 bg-slate-950/85 px-1 py-0.5 rounded text-[9px] font-bold text-white font-tabular leading-none">
+                            {formatSecondsToTime(video.durationSeconds || 300)}
+                          </div>
+                        </div>
+
+                        {/* Title & Info */}
+                        <div className="flex-1 min-w-0 py-0.5">
+                          <h5
+                            className={`text-xs sm:text-sm font-semibold leading-snug line-clamp-2 ${
+                              isCurrent ? 'text-blue-700' : 'text-slate-800'
+                            }`}
+                          >
+                            {video.title}
+                          </h5>
+                          <p className="text-[11px] text-slate-500 truncate mt-1">
+                            {video.channel || 'YouTube Video'}
+                          </p>
+                        </div>
+
+                        {/* Badges Column */}
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          {isCurrent && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200">
+                              Now Playing
+                            </span>
+                          )}
+                          {isVideoCompleted && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Completed</span>
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -63,12 +63,21 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
   const moduleItem = modules.find((m) => m.id === resource.moduleId);
 
   const duration = resource.durationSeconds || 1800;
-  const progressPct =
-    duration > 0
-      ? Math.min(100, Math.round((resource.currentTime / duration) * 100))
-      : 0;
+  
+  const isPlaylist = !!resource.isPlaylist;
+  const totalVideos = resource.playlistVideos?.length || 0;
+  const completedVideos = resource.completedVideoIds?.length || 0;
+  const playlistProgressPct = totalVideos > 0 ? Math.min(100, Math.round((completedVideos / totalVideos) * 100)) : 0;
 
-  const isCompleted = resource.status === 'completed' || progressPct >= 90;
+  const progressPct = isPlaylist
+    ? playlistProgressPct
+    : duration > 0
+    ? Math.min(100, Math.round((resource.currentTime / duration) * 100))
+    : 0;
+
+  const isCompleted = isPlaylist
+    ? (totalVideos > 0 && completedVideos >= totalVideos)
+    : (resource.status === 'completed' || progressPct >= 90);
 
   // Derive thumbnail if not explicitly present but has videoId
   const displayThumbnail =
@@ -261,20 +270,24 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
           )}
 
           {/* Watch Progress */}
-          {progressPct > 0 && (
+          {(progressPct > 0 || isPlaylist) && (
             <div className="pt-1.5">
               <div className="flex items-center justify-between text-xs text-slate-500 font-tabular mb-1.5">
-                <span>{progressPct}% completed</span>
+                {isPlaylist ? (
+                  <span>Playlist: {completedVideos}/{totalVideos} videos ({playlistProgressPct}%)</span>
+                ) : (
+                  <span>{progressPct}% completed</span>
+                )}
                 {isCompleted ? (
                   <span className="text-emerald-600 font-semibold flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Finished
                   </span>
-                ) : (
+                ) : !isPlaylist ? (
                   <span>
                     {formatSecondsToTime(resource.currentTime)} / {formatSecondsToTime(duration)}
                   </span>
-                )}
+                ) : null}
               </div>
               <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                 <div

@@ -162,6 +162,24 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const sanitizeForFirestore = (obj: any): any => {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore);
+  }
+  if (typeof obj === 'object') {
+    const sanitized: any = {};
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+      if (value !== undefined) {
+        sanitized[key] = sanitizeForFirestore(value);
+      }
+    }
+    return sanitized;
+  }
+  return obj;
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isGuest } = useAuth();
 
@@ -399,7 +417,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           initialBookmarks.forEach((bm) => {
             const bmDocRef = doc(db, 'users', userId, 'bookmarks', bm.id);
-            setDoc(bmDocRef, { ...bm, userId }).catch(() => {});
+            setDoc(bmDocRef, sanitizeForFirestore({ ...bm, userId })).catch(() => {});
           });
         } else {
           setBookmarks(fetchedBookmarks);
@@ -486,7 +504,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const taskDocRef = doc(db, 'users', user.uid, 'tasks', id);
-      setDoc(taskDocRef, { ...createdTask, userId: user.uid }).catch((err) =>
+      setDoc(taskDocRef, sanitizeForFirestore({ ...createdTask, userId: user.uid })).catch((err) =>
         handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/tasks/${id}`)
       );
     }
@@ -502,7 +520,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const taskDocRef = doc(db, 'users', user.uid, 'tasks', id);
-      updateDoc(taskDocRef, updates).catch((err) =>
+      updateDoc(taskDocRef, sanitizeForFirestore(updates)).catch((err) =>
         handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/tasks/${id}`)
       );
     }
@@ -720,7 +738,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const goalDocRef = doc(db, 'users', user.uid, 'goals', id);
-      setDoc(goalDocRef, { ...createdGoal, userId: user.uid }).catch((err) =>
+      setDoc(goalDocRef, sanitizeForFirestore({ ...createdGoal, userId: user.uid })).catch((err) =>
         handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/goals/${id}`)
       );
     }
@@ -736,7 +754,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const goalDocRef = doc(db, 'users', user.uid, 'goals', id);
-      updateDoc(goalDocRef, updates).catch((err) =>
+      updateDoc(goalDocRef, sanitizeForFirestore(updates)).catch((err) =>
         handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/goals/${id}`)
       );
     }
@@ -791,7 +809,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const modDocRef = doc(db, 'users', user.uid, 'modules', id);
-      setDoc(modDocRef, { ...createdModule, userId: user.uid }).catch((err) =>
+      setDoc(modDocRef, sanitizeForFirestore({ ...createdModule, userId: user.uid })).catch((err) =>
         handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/modules/${id}`)
       );
     }
@@ -807,7 +825,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const modDocRef = doc(db, 'users', user.uid, 'modules', id);
-      updateDoc(modDocRef, updates).catch((err) =>
+      updateDoc(modDocRef, sanitizeForFirestore(updates)).catch((err) =>
         handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/modules/${id}`)
       );
     }
@@ -861,7 +879,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const resDocRef = doc(db, 'users', user.uid, 'resources', id);
-      setDoc(resDocRef, { ...createdRes, userId: user.uid }).catch((err) =>
+      setDoc(resDocRef, sanitizeForFirestore({ ...createdRes, userId: user.uid })).catch((err) =>
         handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/resources/${id}`)
       );
     }
@@ -871,9 +889,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateResource = (id: string, updates: Partial<Resource>) => {
-    setResources((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
-    );
+    const target = resources.find((r) => r.id === id);
+    if (!target) return;
+
+    const nextResources = resources.map((r) => (r.id === id ? { ...r, ...updates } : r));
+    setResources(nextResources);
 
     if (activePlayingResource && activePlayingResource.id === id) {
       setActivePlayingResource((prev) => (prev ? { ...prev, ...updates } : null));
@@ -881,10 +901,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const resDocRef = doc(db, 'users', user.uid, 'resources', id);
-      updateDoc(resDocRef, updates).catch((err) =>
+      updateDoc(resDocRef, sanitizeForFirestore(updates)).catch((err) =>
         handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/resources/${id}`)
       );
     }
+
+    recalcModuleProgress(target.moduleId, nextResources);
   };
 
   const deleteResource = (id: string) => {
@@ -953,7 +975,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const sessionDocRef = doc(db, 'users', user.uid, 'sessions', studySession.id);
-      setDoc(sessionDocRef, { ...studySession, userId: user.uid }).catch((err) =>
+      setDoc(sessionDocRef, sanitizeForFirestore({ ...studySession, userId: user.uid })).catch((err) =>
         handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/sessions/${studySession.id}`)
       );
     }
@@ -962,13 +984,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Resource marked completed');
   };
 
-  const recalcModuleProgress = (moduleId: string) => {
-    const modResources = resources.filter((r) => r.moduleId === moduleId);
+  const recalcModuleProgress = (moduleId: string, customResources?: Resource[]) => {
+    const activeResources = customResources || resources;
+    const modResources = activeResources.filter((r) => r.moduleId === moduleId);
     if (modResources.length === 0) return;
 
-    const completed = modResources.filter((r) => r.status === 'completed').length;
-    const progress = Math.round((completed / modResources.length) * 100);
-    const status = progress === 100 ? 'completed' : progress > 0 ? 'in_progress' : 'not_started';
+    let totalCompletionPercentageSum = 0;
+    for (const r of modResources) {
+      if (r.isPlaylist) {
+        const totalVids = r.playlistVideos?.length || 0;
+        const completedVids = r.completedVideoIds?.length || 0;
+        const pct = totalVids > 0 ? (completedVids / totalVids) * 100 : (r.status === 'completed' ? 100 : 0);
+        totalCompletionPercentageSum += pct;
+      } else {
+        if (r.status === 'completed') {
+          totalCompletionPercentageSum += 100;
+        } else if (r.durationSeconds > 0 && r.currentTime > 0) {
+          const pct = Math.min(100, Math.round((r.currentTime / r.durationSeconds) * 100));
+          totalCompletionPercentageSum += pct;
+        }
+      }
+    }
+
+    const progress = Math.round(totalCompletionPercentageSum / modResources.length);
+    const status = progress >= 100 ? 'completed' : progress > 0 ? 'in_progress' : 'not_started';
 
     updateModule(moduleId, { progress, status });
   };
@@ -1169,7 +1208,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const bmDocRef = doc(db, 'users', user.uid, 'bookmarks', id);
-      setDoc(bmDocRef, { ...createdBookmark, userId: user.uid }).catch((err) =>
+      setDoc(bmDocRef, sanitizeForFirestore({ ...createdBookmark, userId: user.uid })).catch((err) =>
         handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/bookmarks/${id}`)
       );
       try {
@@ -1195,7 +1234,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const bmDocRef = doc(db, 'users', user.uid, 'bookmarks', id);
-      updateDoc(bmDocRef, fullUpdates).catch((err) =>
+      updateDoc(bmDocRef, sanitizeForFirestore(fullUpdates)).catch((err) =>
         handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/bookmarks/${id}`)
       );
       try {

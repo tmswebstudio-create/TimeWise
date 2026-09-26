@@ -420,3 +420,74 @@ export const fetchYoutubeMetadata = async (urlOrId: string): Promise<YoutubeVide
     thumbnailFallback: hqThumbnail,
   };
 };
+
+/**
+ * Fetch the videos of a YouTube playlist using a list of public Invidious instances
+ * with a high-availability RSS-to-JSON fallback.
+ */
+export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<any[]> => {
+  if (!playlistId) return [];
+
+  const instances = [
+    'https://invidious.flokinet.to',
+    'https://yewtu.be',
+    'https://inv.tux.im',
+    'https://invidious.projectsegfau.lt',
+    'https://invidious.io.lol'
+  ];
+
+  for (const instance of instances) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
+
+      const response = await fetch(`${instance}/api/v1/playlists/${playlistId}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && Array.isArray(data.videos)) {
+          return data.videos.map((vid: any, i: number) => ({
+            videoId: vid.videoId,
+            title: vid.title,
+            channel: vid.author || data.author || 'YouTube Creator',
+            durationSeconds: vid.lengthSeconds || 300,
+            thumbnail: vid.videoThumbnails?.[0]?.url || `https://img.youtube.com/vi/${vid.videoId}/mqdefault.jpg`,
+            index: i,
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn(`Failed to fetch from invidious instance ${instance}:`, err);
+    }
+  }
+
+  // RSS-to-JSON online parser fallback
+  try {
+    const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.youtube.com%2Ffeeds%2Fvideos.xml%3Fplaylist_id%3D${playlistId}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.items && Array.isArray(data.items)) {
+        return data.items.map((item: any, i: number) => {
+          const videoIdMatch = item.link?.match(/v=([\w-]{11})/);
+          const videoId = videoIdMatch ? videoIdMatch[1] : '';
+          return {
+            videoId,
+            title: item.title,
+            channel: item.author || 'YouTube Creator',
+            durationSeconds: 300,
+            thumbnail: item.thumbnail || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+            index: i,
+          };
+        }).filter((v: any) => v.videoId);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch from RSS fallback:', err);
+  }
+
+  return [];
+};
+

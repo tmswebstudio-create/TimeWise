@@ -22,6 +22,7 @@ import {
   extractYoutubePlaylistId,
   fetchYoutubeMetadata,
   getYoutubeThumbnail,
+  fetchYoutubePlaylistVideos,
 } from '../../utils/youtubeUtils';
 import { formatSecondsToTime } from '../../utils/timeUtils';
 
@@ -51,6 +52,7 @@ export const ResourceFormModal: React.FC = () => {
   const [goalId, setGoalId] = useState(preselectedGoalId || goals[0]?.id || '');
   const [moduleId, setModuleId] = useState(preselectedModuleId || '');
   const [description, setDescription] = useState('');
+  const [playlistVideos, setPlaylistVideos] = useState<any[]>([]);
 
   // YouTube auto-fetch state & smart detection feedback
   const [isFetchingYoutube, setIsFetchingYoutube] = useState(false);
@@ -73,6 +75,7 @@ export const ResourceFormModal: React.FC = () => {
       setGoalId(resourceToEdit.goalId);
       setModuleId(resourceToEdit.moduleId);
       setDescription(resourceToEdit.description || '');
+      setPlaylistVideos(resourceToEdit.playlistVideos || []);
       setLastFetchedVideoId(resourceToEdit.videoId || null);
       setFetchSuccess(false);
       setFetchError(null);
@@ -87,6 +90,7 @@ export const ResourceFormModal: React.FC = () => {
       setExactDurationSeconds(null);
       setThumbnail('');
       setThumbnailFallback('');
+      setPlaylistVideos([]);
       const initialGoal = preselectedGoalId || goals[0]?.id || '';
       setGoalId(initialGoal);
       if (preselectedModuleId) {
@@ -146,8 +150,24 @@ export const ResourceFormModal: React.FC = () => {
         setChannel(meta.channel);
         setThumbnail(meta.thumbnail || '');
         setThumbnailFallback(meta.thumbnailFallback || '');
-        setDurationMinutes(meta.durationMinutes);
-        setExactDurationSeconds(meta.durationSeconds);
+        
+        if (meta.isPlaylist && meta.playlistId) {
+          const fetchedVids = await fetchYoutubePlaylistVideos(meta.playlistId);
+          setPlaylistVideos(fetchedVids);
+          if (fetchedVids.length > 0) {
+            const totalSec = fetchedVids.reduce((sum, v) => sum + (v.durationSeconds || 300), 0);
+            setDurationMinutes(Math.max(1, Math.round(totalSec / 60)));
+            setExactDurationSeconds(totalSec);
+          } else {
+            setDurationMinutes(meta.durationMinutes);
+            setExactDurationSeconds(meta.durationSeconds);
+          }
+        } else {
+          setDurationMinutes(meta.durationMinutes);
+          setExactDurationSeconds(meta.durationSeconds);
+          setPlaylistVideos([]);
+        }
+
         setLastFetchedVideoId(meta.playlistId || meta.videoId);
         setFetchSuccess(true);
         setType('youtube');
@@ -281,6 +301,8 @@ export const ResourceFormModal: React.FC = () => {
         videoId: videoId || resourceToEdit.videoId,
         playlistId: playlistId || resourceToEdit.playlistId,
         isPlaylist: !!playlistId || resourceToEdit.isPlaylist,
+        playlistVideos: playlistVideos.length > 0 ? playlistVideos : resourceToEdit.playlistVideos,
+        currentPlaylistIndex: resourceToEdit.currentPlaylistIndex ?? 0,
         description: description.trim(),
       });
     } else {
@@ -297,6 +319,8 @@ export const ResourceFormModal: React.FC = () => {
         videoId,
         playlistId,
         isPlaylist: !!playlistId,
+        playlistVideos: playlistVideos,
+        currentPlaylistIndex: 0,
         status: 'not_started',
         currentTime: 0,
         description: description.trim(),
