@@ -1,0 +1,335 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile info and account metadata",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth user unique identifier"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User account email address"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Avatar image URL"
+        },
+        "isGuest": {
+          "type": "boolean",
+          "description": "Whether this is a temporary guest account"
+        },
+        "timezone": {
+          "type": "string",
+          "description": "User selected timezone"
+        },
+        "dailyTargetMinutes": {
+          "type": "number",
+          "description": "Daily target learning time in minutes"
+        },
+        "timeFormat": {
+          "type": "string",
+          "enum": ["12h", "24h"],
+          "description": "Time display format"
+        },
+        "soundEnabled": {
+          "type": "boolean",
+          "description": "Sound notification preferences"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of account creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["uid", "email", "displayName"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Time-based scheduled task or learning session",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Task unique identifier"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title",
+          "maxLength": 250
+        },
+        "date": {
+          "type": "string",
+          "description": "Task date in YYYY-MM-DD format"
+        },
+        "startTime": {
+          "type": "string",
+          "description": "Start time in HH:mm 24h format"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "End time in HH:mm 24h format"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["todo", "in_progress", "completed"]
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "goalId": {
+          "type": "string"
+        },
+        "moduleId": {
+          "type": "string"
+        },
+        "resourceId": {
+          "type": "string"
+        },
+        "subtasks": {
+          "type": "array"
+        },
+        "links": {
+          "type": "array"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "completedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "userId", "title", "date", "startTime", "endTime", "priority", "status", "category"]
+    },
+    "LearningGoal": {
+      "title": "LearningGoal",
+      "description": "Learning goal or course roadmap",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "coverImage": {
+          "type": "string"
+        },
+        "progress": {
+          "type": "number"
+        },
+        "category": {
+          "type": "string"
+        },
+        "totalLearningTimeMinutes": {
+          "type": "number"
+        },
+        "lastStudiedAt": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "userId", "title", "category"]
+    },
+    "Module": {
+      "title": "Module",
+      "description": "Learning module under a goal",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "goalId": {
+          "type": "string"
+        },
+        "order": {
+          "type": "number"
+        },
+        "code": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["not_started", "in_progress", "completed", "locked"]
+        },
+        "progress": {
+          "type": "number"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 5000
+        }
+      },
+      "required": ["id", "userId", "goalId", "code", "title", "status"]
+    },
+    "Resource": {
+      "title": "Resource",
+      "description": "Learning resource/video attached to a module",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "goalId": {
+          "type": "string"
+        },
+        "moduleId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["youtube", "article", "documentation", "reference"]
+        },
+        "section": {
+          "type": "string",
+          "enum": ["learn", "practice", "review"]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 250
+        },
+        "url": {
+          "type": "string"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "thumbnail": {
+          "type": "string"
+        },
+        "durationSeconds": {
+          "type": "number"
+        },
+        "videoId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["not_started", "in_progress", "completed", "saved"]
+        },
+        "currentTime": {
+          "type": "number"
+        },
+        "lastWatchedAt": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 10000
+        }
+      },
+      "required": ["id", "userId", "goalId", "moduleId", "type", "section", "title", "url", "status"]
+    },
+    "LearningSession": {
+      "title": "LearningSession",
+      "description": "Logged focus/study session",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "resourceId": {
+          "type": "string"
+        },
+        "goalId": {
+          "type": "string"
+        },
+        "moduleId": {
+          "type": "string"
+        },
+        "resourceTitle": {
+          "type": "string"
+        },
+        "activityType": {
+          "type": "string"
+        },
+        "durationMinutes": {
+          "type": "number"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "userId", "durationMinutes", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile and settings document"
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Collection of tasks owned by the user"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": "LearningGoal",
+      "description": "Collection of learning goals owned by the user"
+    },
+    "/users/{userId}/modules/{moduleId}": {
+      "schema": "Module",
+      "description": "Collection of goal modules owned by the user"
+    },
+    "/users/{userId}/resources/{resourceId}": {
+      "schema": "Resource",
+      "description": "Collection of study resources owned by the user"
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": "LearningSession",
+      "description": "Collection of study sessions logged by the user"
+    }
+  }
+}
