@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Layers } from 'lucide-react';
+import { X, Layers, Upload, Image } from 'lucide-react';
 import { Module, ModuleStatus } from '../../types';
 
 export const ModuleFormModal: React.FC = () => {
@@ -25,6 +25,26 @@ export const ModuleFormModal: React.FC = () => {
   const [goalId, setGoalId] = useState(preselectedGoalId || selectedGoalId || goals[0]?.id || '');
   const [icon, setIcon] = useState('💻');
   const [imageUrl, setImageUrl] = useState('');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) { // Limit size to 2MB for Firestore friendliness
+      setUploadError('Image size exceeds 2MB limit.');
+      return;
+    }
+
+    setUploadError(null);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setImageUrl(base64String);
+      setIcon(''); // Clear icon preset when a custom image is uploaded
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (moduleToEdit) {
@@ -222,6 +242,49 @@ export const ModuleFormModal: React.FC = () => {
                   </button>
                 ))}
               </div>
+
+              {/* Upload Image Option */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex flex-col sm:flex-row items-center gap-3 justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-lg bg-blue-50/60 flex items-center justify-center shrink-0 border border-blue-200/50">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : (
+                      <Image className="w-5 h-5 text-blue-600" />
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <h5 className="text-xs font-semibold text-slate-800">
+                      {imageUrl && imageUrl.startsWith('data:') ? 'Uploaded Image Active' : 'Upload Custom Icon/Image'}
+                    </h5>
+                    <p className="text-[10px] text-slate-500">Supports PNG, JPG, WebP (Max 2MB)</p>
+                  </div>
+                </div>
+
+                <div className="relative shrink-0">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg shadow-2xs"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Choose File</span>
+                  </button>
+                </div>
+              </div>
+
+              {uploadError && (
+                <p className="text-[10px] text-red-600 font-medium">{uploadError}</p>
+              )}
 
               {/* Custom Image URL or Custom Emoji */}
               <div className="grid grid-cols-2 gap-2.5">

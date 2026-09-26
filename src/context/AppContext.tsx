@@ -211,11 +211,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     'General',
   ]);
 
-  // View & Nav State
-  const [activeView, setActiveViewRaw] = useState<ActiveView>('tasks');
-  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
-  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  // View & Nav State (Initialized from localStorage to persist across reloads)
+  const [activeView, setActiveViewRaw] = useState<ActiveView>(() => {
+    try {
+      const saved = localStorage.getItem('timewise_active_view');
+      if (saved) return saved as ActiveView;
+    } catch (e) {}
+    return 'tasks';
+  });
+
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem('timewise_selected_goal_id');
+      if (saved) return saved;
+    } catch (e) {}
+    return null;
+  });
+
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem('timewise_selected_module_id');
+      if (saved) return saved;
+    } catch (e) {}
+    return null;
+  });
+
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  // Sync Nav State to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('timewise_active_view', activeView);
+    } catch (e) {}
+  }, [activeView]);
+
+  useEffect(() => {
+    try {
+      if (selectedGoalId) {
+        localStorage.setItem('timewise_selected_goal_id', selectedGoalId);
+      } else {
+        localStorage.removeItem('timewise_selected_goal_id');
+      }
+    } catch (e) {}
+  }, [selectedGoalId]);
+
+  useEffect(() => {
+    try {
+      if (selectedModuleId) {
+        localStorage.setItem('timewise_selected_module_id', selectedModuleId);
+      } else {
+        localStorage.removeItem('timewise_selected_module_id');
+      }
+    } catch (e) {}
+  }, [selectedModuleId]);
 
   // Website Bookmarks State
   const [bookmarks, setBookmarks] = useState<WebsiteBookmark[]>([]);
@@ -457,8 +505,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Navigation Helper
   const setActiveView = (view: ActiveView, goalId?: string, moduleId?: string) => {
     setActiveViewRaw(view);
-    if (goalId) setSelectedGoalId(goalId);
-    if (moduleId) setSelectedModuleId(moduleId);
+    if (goalId) {
+      setSelectedGoalId(goalId);
+    } else if (view !== 'goal-detail' && view !== 'module-detail') {
+      setSelectedGoalId(null);
+    }
+
+    if (moduleId) {
+      setSelectedModuleId(moduleId);
+    } else if (view !== 'module-detail') {
+      setSelectedModuleId(null);
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
