@@ -20,12 +20,15 @@ import { ResourcePlayerModal } from './components/resources/ResourcePlayerModal'
 import { ResourceFormModal } from './components/resources/ResourceFormModal';
 
 import { ProgressView } from './components/progress/ProgressView';
+import { BookmarksView } from './components/bookmarks/BookmarksView';
+import { BookmarkFormModal } from './components/bookmarks/BookmarkFormModal';
 import { SettingsView } from './components/settings/SettingsView';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { AuthPage } from './components/auth/AuthPage';
 import { TimeWiseMark } from './components/common/TimeWiseLogo';
 import { Toast } from './components/common/Toast';
+import { OfflineIndicator } from './components/common/OfflineIndicator';
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
@@ -69,6 +72,7 @@ const AppContent: React.FC = () => {
           {activeView === 'goals' && <GoalsView />}
           {activeView === 'goal-detail' && <GoalDetailView />}
           {activeView === 'module-detail' && <ModuleDetailView />}
+          {activeView === 'bookmarks' && <BookmarksView />}
           {activeView === 'progress' && <ProgressView />}
           {activeView === 'settings' && <SettingsView />}
         </main>
@@ -87,9 +91,11 @@ const AppContent: React.FC = () => {
       <ModuleFormModal />
       <ResourcePlayerModal />
       <ResourceFormModal />
+      <BookmarkFormModal />
       <GlobalSearchModal />
       <AuthModal />
       <Toast />
+      <OfflineIndicator />
     </div>
   );
 };

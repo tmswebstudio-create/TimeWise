@@ -10,6 +10,7 @@ import {
   Subtask,
   TaskLink,
   ResourceSection,
+  WebsiteBookmark,
 } from '../types';
 import {
   generateInitialTasks,
@@ -18,6 +19,7 @@ import {
   initialResources,
   initialSessions,
   initialSettings,
+  initialBookmarks,
 } from '../data/initialData';
 import { getTodayDateString, addDays } from '../utils/timeUtils';
 import { useAuth } from './AuthContext';
@@ -130,6 +132,28 @@ interface AppContextType {
   reorderResources: (sourceId: string, targetId: string) => void;
   moveResourceToSection: (resourceId: string, targetSection: ResourceSection) => void;
 
+  // Website Bookmarks
+  bookmarks: WebsiteBookmark[];
+  isBookmarkFormOpen: boolean;
+  bookmarkToEdit: WebsiteBookmark | null;
+  preselectedBookmarkCategory?: string | null;
+  preselectedBookmarkSubcategory?: string | null;
+  openBookmarkForm: (bookmark?: WebsiteBookmark | null, category?: string, subcategory?: string) => void;
+  closeBookmarkForm: () => void;
+  addBookmark: (bookmark: Omit<WebsiteBookmark, 'id' | 'createdAt'>) => WebsiteBookmark;
+  updateBookmark: (id: string, updates: Partial<WebsiteBookmark>) => void;
+  deleteBookmark: (id: string) => void;
+  togglePinBookmark: (id: string) => void;
+  recordBookmarkClick: (id: string) => void;
+  reorderBookmarks: (sourceId: string, targetId: string) => void;
+  moveBookmark: (bookmarkId: string, targetCategory: string, targetSubcategory?: string, targetBookmarkId?: string) => void;
+  pinnedBookmarkOrder: string[];
+  reorderPinnedBookmarks: (sourceId: string, targetId: string) => void;
+  categoryOrder: string[];
+  reorderCategories: (sourceCat: string, targetCat: string) => void;
+  subcategoryOrder: Record<string, string[]>;
+  reorderSubcategories: (category: string, sourceSubcat: string, targetSubcat: string) => void;
+
   // Settings & reset
   updateSettings: (newSettings: Partial<UserSettings>) => void;
   resetToDemoData: () => void;
@@ -175,25 +199,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
-  // Panels & Sidebars - default left and right panels collapsed
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState<boolean>(() => {
+  // Website Bookmarks State
+  const [bookmarks, setBookmarks] = useState<WebsiteBookmark[]>([]);
+  const [isBookmarkFormOpen, setIsBookmarkFormOpen] = useState(false);
+  const [bookmarkToEdit, setBookmarkToEdit] = useState<WebsiteBookmark | null>(null);
+  const [preselectedBookmarkCategory, setPreselectedBookmarkCategory] = useState<string | null>(null);
+  const [preselectedBookmarkSubcategory, setPreselectedBookmarkSubcategory] = useState<string | null>(null);
+
+  const [categoryOrder, setCategoryOrder] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('timewise_right_panel_open');
-      if (saved !== null) return JSON.parse(saved);
-    } catch (e) {
-      // Ignore error
-    }
-    return false; // default collapsed
+      const saved = localStorage.getItem('timewise_bookmark_category_order');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
   });
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+
+  const [subcategoryOrder, setSubcategoryOrder] = useState<Record<string, string[]>>(() => {
     try {
-      const saved = localStorage.getItem('timewise_sidebar_collapsed');
-      if (saved !== null) return JSON.parse(saved);
-    } catch (e) {
-      // Ignore error
-    }
-    return true; // default collapsed
+      const saved = localStorage.getItem('timewise_bookmark_subcategory_order');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {};
   });
+
+  const [pinnedBookmarkOrder, setPinnedBookmarkOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('timewise_pinned_bookmark_order');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+
+  // Panels & Sidebars - default left and right panels stay collapsed
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(true);
 
   // Modals
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
@@ -230,6 +269,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setModules([]);
       setResources([]);
       setSessions([]);
+      setBookmarks([]);
       return;
     }
 
@@ -328,6 +368,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (err) => handleFirestoreError(err, OperationType.LIST, `users/${userId}/sessions`)
     );
 
+    // 7. Sync Bookmarks
+    const bookmarksCollRef = collection(db, 'users', userId, 'bookmarks');
+    const unsubBookmarks = onSnapshot(
+      bookmarksCollRef,
+      (snapshot) => {
+        const fetchedBookmarks: WebsiteBookmark[] = [];
+        snapshot.forEach((docSnap) => {
+          fetchedBookmarks.push(docSnap.data() as WebsiteBookmark);
+        });
+
+        if (fetchedBookmarks.length === 0) {
+          // Check if local cache has bookmarks
+          const localCache = localStorage.getItem(`timewise_bookmarks_${userId}`);
+          if (localCache) {
+            try {
+              const parsed = JSON.parse(localCache);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setBookmarks(parsed);
+                return;
+              }
+            } catch (e) {}
+          }
+
+          // Initial load: seed initialBookmarks for user
+          setBookmarks(initialBookmarks);
+          try {
+            localStorage.setItem(`timewise_bookmarks_${userId}`, JSON.stringify(initialBookmarks));
+          } catch (e) {}
+
+          initialBookmarks.forEach((bm) => {
+            const bmDocRef = doc(db, 'users', userId, 'bookmarks', bm.id);
+            setDoc(bmDocRef, { ...bm, userId }).catch(() => {});
+          });
+        } else {
+          setBookmarks(fetchedBookmarks);
+          try {
+            localStorage.setItem(`timewise_bookmarks_${userId}`, JSON.stringify(fetchedBookmarks));
+          } catch (e) {}
+        }
+      },
+      (err) => {
+        handleFirestoreError(err, OperationType.LIST, `users/${userId}/bookmarks`);
+        // Fallback to local storage or defaults
+        const raw: string = localStorage.getItem(`timewise_bookmarks_${userId}`) || localStorage.getItem('timewise_bookmarks') || '';
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              setBookmarks(parsed);
+              return;
+            }
+          } catch (e) {}
+        }
+        setBookmarks(initialBookmarks);
+      }
+    );
+
     return () => {
       unsubUser();
       unsubTasks();
@@ -335,6 +432,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubModules();
       unsubResources();
       unsubSessions();
+      unsubBookmarks();
     };
   }, [user]);
 
@@ -940,6 +1038,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setModules(initialModules);
     setResources(initialResources);
     setSessions(initialSessions);
+    setBookmarks(initialBookmarks);
     setSettings(initialSettings);
 
     if (user) {
@@ -960,6 +1059,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       initialSessions.forEach((s) => {
         batch.set(doc(db, 'users', user.uid, 'sessions', s.id), { ...s, userId: user.uid });
       });
+      initialBookmarks.forEach((bm) => {
+        batch.set(doc(db, 'users', user.uid, 'bookmarks', bm.id), { ...bm, userId: user.uid });
+      });
       batch.commit().catch((err) => console.error('Failed to batch save demo data:', err));
     }
 
@@ -973,6 +1075,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setModules([]);
     setResources([]);
     setSessions([]);
+    setBookmarks([]);
 
     if (user) {
       tasks.forEach((t) => deleteDoc(doc(db, 'users', user.uid, 'tasks', t.id)));
@@ -980,6 +1083,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       modules.forEach((m) => deleteDoc(doc(db, 'users', user.uid, 'modules', m.id)));
       resources.forEach((r) => deleteDoc(doc(db, 'users', user.uid, 'resources', r.id)));
       sessions.forEach((s) => deleteDoc(doc(db, 'users', user.uid, 'sessions', s.id)));
+      bookmarks.forEach((bm) => deleteDoc(doc(db, 'users', user.uid, 'bookmarks', bm.id)));
     }
 
     showToast('All data cleared. Clean slate ready.');
@@ -1035,6 +1139,254 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const closeResourcePlayer = () => {
     setIsResourcePlayerOpen(false);
     setActivePlayingResource(null);
+  };
+
+  // Website Bookmarks Actions
+  const openBookmarkForm = (bookmark?: WebsiteBookmark | null, category?: string, subcategory?: string) => {
+    setBookmarkToEdit(bookmark || null);
+    setPreselectedBookmarkCategory(category || null);
+    setPreselectedBookmarkSubcategory(subcategory || null);
+    setIsBookmarkFormOpen(true);
+  };
+
+  const closeBookmarkForm = () => {
+    setIsBookmarkFormOpen(false);
+    setBookmarkToEdit(null);
+    setPreselectedBookmarkCategory(null);
+    setPreselectedBookmarkSubcategory(null);
+  };
+
+  const addBookmark = (newBookmarkData: Omit<WebsiteBookmark, 'id' | 'createdAt'>): WebsiteBookmark => {
+    const id = `bm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const createdBookmark: WebsiteBookmark = {
+      ...newBookmarkData,
+      id,
+      createdAt: new Date().toISOString(),
+      clickCount: 0,
+    };
+
+    setBookmarks((prev) => [createdBookmark, ...prev]);
+
+    if (user) {
+      const bmDocRef = doc(db, 'users', user.uid, 'bookmarks', id);
+      setDoc(bmDocRef, { ...createdBookmark, userId: user.uid }).catch((err) =>
+        handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/bookmarks/${id}`)
+      );
+      try {
+        const updated = [createdBookmark, ...bookmarks];
+        localStorage.setItem(`timewise_bookmarks_${user.uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    } else {
+      try {
+        const updated = [createdBookmark, ...bookmarks];
+        localStorage.setItem('timewise_bookmarks', JSON.stringify(updated));
+      } catch (e) {}
+    }
+
+    showToast(`Bookmark "${createdBookmark.title}" added`);
+    return createdBookmark;
+  };
+
+  const updateBookmark = (id: string, updates: Partial<WebsiteBookmark>) => {
+    const fullUpdates = { ...updates, updatedAt: new Date().toISOString() };
+    setBookmarks((prev) =>
+      prev.map((bm) => (bm.id === id ? { ...bm, ...fullUpdates } : bm))
+    );
+
+    if (user) {
+      const bmDocRef = doc(db, 'users', user.uid, 'bookmarks', id);
+      updateDoc(bmDocRef, fullUpdates).catch((err) =>
+        handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/bookmarks/${id}`)
+      );
+      try {
+        const updated = bookmarks.map((bm) => (bm.id === id ? { ...bm, ...fullUpdates } : bm));
+        localStorage.setItem(`timewise_bookmarks_${user.uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
+    showToast('Bookmark updated');
+  };
+
+  const deleteBookmark = (id: string) => {
+    const target = bookmarks.find((bm) => bm.id === id);
+    setBookmarks((prev) => prev.filter((bm) => bm.id !== id));
+
+    if (user) {
+      const bmDocRef = doc(db, 'users', user.uid, 'bookmarks', id);
+      deleteDoc(bmDocRef).catch((err) =>
+        handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/bookmarks/${id}`)
+      );
+      try {
+        const updated = bookmarks.filter((bm) => bm.id !== id);
+        localStorage.setItem(`timewise_bookmarks_${user.uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
+    showToast(`Bookmark "${target?.title || 'item'}" removed`);
+  };
+
+  const togglePinBookmark = (id: string) => {
+    const bm = bookmarks.find((b) => b.id === id);
+    if (!bm) return;
+    const isPinned = !bm.isPinned;
+    updateBookmark(id, { isPinned });
+  };
+
+  const recordBookmarkClick = (id: string) => {
+    const bm = bookmarks.find((b) => b.id === id);
+    if (!bm) return;
+    const clickCount = (bm.clickCount || 0) + 1;
+    const lastVisitedAt = new Date().toISOString();
+    updateBookmark(id, { clickCount, lastVisitedAt });
+  };
+
+  const reorderBookmarks = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    setBookmarks((prev) => {
+      const sourceIndex = prev.findIndex((b) => b.id === sourceId);
+      const targetIndex = prev.findIndex((b) => b.id === targetId);
+      if (sourceIndex === -1 || targetIndex === -1) return prev;
+
+      const updated = [...prev];
+      const [moved] = updated.splice(sourceIndex, 1);
+      // Strictly maintain the moved card's own category and subcategory
+      updated.splice(targetIndex, 0, moved);
+
+      if (user) {
+        try {
+          localStorage.setItem(`timewise_bookmarks_${user.uid}`, JSON.stringify(updated));
+        } catch (e) {}
+      } else {
+        try {
+          localStorage.setItem('timewise_bookmarks', JSON.stringify(updated));
+        } catch (e) {}
+      }
+
+      return updated;
+    });
+  };
+
+  const reorderPinnedBookmarks = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    setPinnedBookmarkOrder((prev) => {
+      const currentPinnedIds = bookmarks.filter((b) => b.isPinned).map((b) => b.id);
+      const combined = Array.from(
+        new Set([...prev.filter((id) => currentPinnedIds.includes(id)), ...currentPinnedIds])
+      );
+      const sourceIdx = combined.indexOf(sourceId);
+      const targetIdx = combined.indexOf(targetId);
+      if (sourceIdx === -1 || targetIdx === -1) return prev;
+
+      const updated = [...combined];
+      const [moved] = updated.splice(sourceIdx, 1);
+      updated.splice(targetIdx, 0, moved);
+
+      try {
+        localStorage.setItem('timewise_pinned_bookmark_order', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const moveBookmark = (
+    bookmarkId: string,
+    targetCategory: string,
+    targetSubcategory?: string,
+    targetBookmarkId?: string
+  ) => {
+    setBookmarks((prev) => {
+      const sourceIndex = prev.findIndex((b) => b.id === bookmarkId);
+      if (sourceIndex === -1) return prev;
+
+      const updated = [...prev];
+      const [moved] = updated.splice(sourceIndex, 1);
+
+      const modified = {
+        ...moved,
+        category: targetCategory,
+        subcategory: targetSubcategory || moved.subcategory || 'General',
+      };
+
+      if (targetBookmarkId) {
+        const targetIndex = updated.findIndex((b) => b.id === targetBookmarkId);
+        if (targetIndex !== -1) {
+          updated.splice(targetIndex, 0, modified);
+        } else {
+          updated.push(modified);
+        }
+      } else {
+        updated.push(modified);
+      }
+
+      if (user) {
+        try {
+          localStorage.setItem(`timewise_bookmarks_${user.uid}`, JSON.stringify(updated));
+        } catch (e) {}
+        const bmDocRef = doc(db, 'users', user.uid, 'bookmarks', bookmarkId);
+        updateDoc(bmDocRef, {
+          category: targetCategory,
+          subcategory: modified.subcategory,
+          updatedAt: new Date().toISOString(),
+        }).catch(() => {});
+      } else {
+        try {
+          localStorage.setItem('timewise_bookmarks', JSON.stringify(updated));
+        } catch (e) {}
+      }
+
+      return updated;
+    });
+    showToast(`Moved to ${targetCategory}${targetSubcategory ? ` / ${targetSubcategory}` : ''}`);
+  };
+
+  const reorderCategories = (sourceCat: string, targetCat: string) => {
+    if (sourceCat === targetCat) return;
+    setCategoryOrder((prev) => {
+      const allCats = Array.from(new Set([...prev, ...bookmarks.map((b) => b.category || 'General')]));
+      const sourceIdx = allCats.indexOf(sourceCat);
+      const targetIdx = allCats.indexOf(targetCat);
+      if (sourceIdx === -1 || targetIdx === -1) return prev;
+
+      const updated = [...allCats];
+      const [moved] = updated.splice(sourceIdx, 1);
+      updated.splice(targetIdx, 0, moved);
+
+      try {
+        localStorage.setItem('timewise_bookmark_category_order', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    showToast(`Category reordered`);
+  };
+
+  const reorderSubcategories = (category: string, sourceSubcat: string, targetSubcat: string) => {
+    if (sourceSubcat === targetSubcat) return;
+    setSubcategoryOrder((prev) => {
+      const existing = prev[category] || [];
+      const currentSubs = Array.from(
+        new Set([
+          ...existing,
+          ...bookmarks.filter((b) => b.category === category).map((b) => b.subcategory || 'General'),
+        ])
+      );
+
+      const sourceIdx = currentSubs.indexOf(sourceSubcat);
+      const targetIdx = currentSubs.indexOf(targetSubcat);
+      if (sourceIdx === -1 || targetIdx === -1) return prev;
+
+      const updatedList = [...currentSubs];
+      const [moved] = updatedList.splice(sourceIdx, 1);
+      updatedList.splice(targetIdx, 0, moved);
+
+      const updatedMap = {
+        ...prev,
+        [category]: updatedList,
+      };
+
+      try {
+        localStorage.setItem('timewise_bookmark_subcategory_order', JSON.stringify(updatedMap));
+      } catch (e) {}
+      return updatedMap;
+    });
+    showToast(`Subcategory reordered`);
   };
 
   return (
@@ -1119,6 +1471,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createTaskFromResource,
         reorderResources,
         moveResourceToSection,
+        bookmarks,
+        isBookmarkFormOpen,
+        bookmarkToEdit,
+        preselectedBookmarkCategory,
+        preselectedBookmarkSubcategory,
+        openBookmarkForm,
+        closeBookmarkForm,
+        addBookmark,
+        updateBookmark,
+        deleteBookmark,
+        togglePinBookmark,
+        recordBookmarkClick,
+        reorderBookmarks,
+        moveBookmark,
+        pinnedBookmarkOrder,
+        reorderPinnedBookmarks,
+        categoryOrder,
+        reorderCategories,
+        subcategoryOrder,
+        reorderSubcategories,
         updateSettings,
         resetToDemoData,
         clearAllUserData,

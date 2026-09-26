@@ -81,9 +81,9 @@ export const GoalsView: React.FC = () => {
               Drag cards to reorder
             </span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-heading font-semibold text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
             Learning Goals
-          </h2>
+          </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             Structured modular courses, verified resources, and real-time study progress. Drag cards to organize your curriculum priorities.
           </p>

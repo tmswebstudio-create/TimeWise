@@ -21,6 +21,7 @@ export const Sidebar: React.FC = () => {
     activeView,
     setActiveView,
     tasks,
+    bookmarks,
     sessions,
     settings,
     openTaskForm,
@@ -50,6 +51,7 @@ export const Sidebar: React.FC = () => {
   const navItems: { id: ActiveView; label: string; icon: typeof CheckSquare; badge?: number }[] = [
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: remainingToday > 0 ? remainingToday : undefined },
     { id: 'goals', label: 'Learning Goals', icon: Compass },
+    { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark, badge: bookmarks.length > 0 ? bookmarks.length : undefined },
     { id: 'progress', label: 'Progress', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];

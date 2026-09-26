@@ -16,7 +16,9 @@ import {
   LogOut,
   Sparkles,
   ShieldCheck,
+  Smartphone,
 } from 'lucide-react';
+import { PWAInstallButton } from '../common/PWAInstallButton';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -107,9 +109,9 @@ export const SettingsView: React.FC = () => {
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider block mb-1">
               Account & Engine Preferences
             </span>
-            <h2 className="text-xl sm:text-2xl font-heading font-semibold text-slate-900 tracking-tight">
-              System Settings
-            </h2>
+            <h1 className="text-xl sm:text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
+              Settings & Preferences
+            </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
               Manage your Firebase Cloud account, timezone, and daily focus target.
             </p>
@@ -123,6 +125,9 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* PWA Mobile App Card */}
+      <PWAInstallButton variant="card" />
 
       {/* Account / Auth Card */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">

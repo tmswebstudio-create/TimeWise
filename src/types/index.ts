@@ -105,10 +105,27 @@ export interface UserSettings {
   name: string;
 }
 
+export interface WebsiteBookmark {
+  id: string;
+  title: string;
+  url: string;
+  faviconUrl: string;
+  category: string;
+  subcategory?: string;
+  notes?: string;
+  isPinned?: boolean;
+  clickCount?: number;
+  lastVisitedAt?: string;
+  order?: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export type ActiveView = 
   | 'tasks'
   | 'goals'
   | 'goal-detail'
   | 'module-detail'
   | 'progress'
+  | 'bookmarks'
   | 'settings';

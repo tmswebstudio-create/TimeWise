@@ -72,6 +72,15 @@ service cloud.firestore {
         allow update: if isOwner(userId);
         allow delete: if isOwner(userId);
       }
+
+      // Website Bookmarks Subcollection
+      match /bookmarks/{bookmarkId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(bookmarkId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
     }
   }
 }

@@ -81,9 +81,9 @@ export const ProgressView: React.FC = () => {
         <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block mb-1">
           Analytics & Reflection
         </span>
-        <h2 className="text-xl sm:text-2xl font-heading font-semibold text-slate-900 tracking-tight">
-          Learning Progress
-        </h2>
+        <h1 className="text-xl sm:text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
+          Progress & Analytics
+        </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
           Objective metrics on task completion, study volume, and curriculum milestones.
         </p>

@@ -13,12 +13,16 @@ export const MobileNav: React.FC = () => {
   const items: { id: ActiveView; label: string; icon: typeof CheckSquare; badge?: number }[] = [
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: remainingToday > 0 ? remainingToday : undefined },
     { id: 'goals', label: 'Goals', icon: Compass },
+    { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
     { id: 'progress', label: 'Progress', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-40 flex items-center justify-around px-2 pb-safe">
+    <nav
+      aria-label="Mobile Navigation"
+      className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200/90 z-40 flex items-center justify-around px-2 pb-safe shadow-lg"
+    >
       {items.map((item) => {
         const Icon = item.icon;
         const isActive =
@@ -28,8 +32,9 @@ export const MobileNav: React.FC = () => {
         return (
           <button
             key={item.id}
+            type="button"
             onClick={() => setActiveView(item.id)}
-            className={`flex flex-col items-center justify-center flex-1 h-full py-1 min-h-[44px] transition-colors relative ${
+            className={`flex flex-col items-center justify-center flex-1 h-14 min-h-[48px] py-1 transition-colors relative cursor-pointer ${
               isActive ? 'text-blue-600' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
@@ -41,12 +46,12 @@ export const MobileNav: React.FC = () => {
                 </span>
               )}
             </div>
-            <span className={`text-[10px] mt-1 font-medium ${isActive ? 'font-semibold text-blue-600' : 'text-slate-500'}`}>
+            <span className={`text-[10px] mt-0.5 font-medium ${isActive ? 'font-semibold text-blue-600' : 'text-slate-500'}`}>
               {item.label}
             </span>
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 };

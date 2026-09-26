@@ -287,10 +287,10 @@ export const TasksView: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">
-                Daily Command Center
-              </span>
+            <div className="flex items-center gap-2.5 mb-1">
+              <h1 className="text-xl sm:text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
+                Tasks & Schedule
+              </h1>
               <span
                 className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
                   isToday
@@ -305,7 +305,7 @@ export const TasksView: React.FC = () => {
               </span>
             </div>
 
-            <h2 className="text-xl sm:text-2xl font-heading font-semibold text-slate-900 tracking-tight">
+            <h2 className="text-sm sm:text-base font-heading font-semibold text-slate-600 tracking-tight mt-0.5">
               {formatFriendlyDate(selectedDate)}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">

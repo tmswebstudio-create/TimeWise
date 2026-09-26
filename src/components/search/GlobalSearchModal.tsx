@@ -18,13 +18,15 @@ export const GlobalSearchModal: React.FC = () => {
     goals,
     modules,
     resources,
+    bookmarks,
+    recordBookmarkClick,
     setSelectedTaskId,
     setActiveView,
     openResourcePlayer,
   } = useApp();
 
   const [query, setQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'tasks' | 'goals' | 'modules' | 'resources'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'tasks' | 'goals' | 'modules' | 'resources' | 'bookmarks'>('all');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -76,11 +78,23 @@ export const GlobalSearchModal: React.FC = () => {
       )
     : [];
 
+  const matchedBookmarks = q
+    ? bookmarks.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.url.toLowerCase().includes(q) ||
+          b.category?.toLowerCase().includes(q) ||
+          (b.subcategory && b.subcategory.toLowerCase().includes(q)) ||
+          (b.notes && b.notes.toLowerCase().includes(q))
+      )
+    : [];
+
   const totalResults =
     (filterType === 'all' || filterType === 'tasks' ? matchedTasks.length : 0) +
     (filterType === 'all' || filterType === 'goals' ? matchedGoals.length : 0) +
     (filterType === 'all' || filterType === 'modules' ? matchedModules.length : 0) +
-    (filterType === 'all' || filterType === 'resources' ? matchedResources.length : 0);
+    (filterType === 'all' || filterType === 'resources' ? matchedResources.length : 0) +
+    (filterType === 'all' || filterType === 'bookmarks' ? matchedBookmarks.length : 0);
 
   return (
     <div
@@ -166,6 +180,16 @@ export const GlobalSearchModal: React.FC = () => {
             }`}
           >
             Resources ({matchedResources.length})
+          </button>
+          <button
+            onClick={() => setFilterType('bookmarks')}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              filterType === 'bookmarks'
+                ? 'bg-slate-900 text-white font-medium'
+                : 'text-slate-600 hover:bg-slate-200/60'
+            }`}
+          >
+            Bookmarks ({matchedBookmarks.length})
           </button>
         </div>
 
@@ -311,6 +335,47 @@ export const GlobalSearchModal: React.FC = () => {
                           </div>
                         </div>
                         <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Website Bookmarks Results */}
+              {(filterType === 'all' || filterType === 'bookmarks') && matchedBookmarks.length > 0 && (
+                <div>
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2 px-1">
+                    Website Bookmarks ({matchedBookmarks.length})
+                  </h4>
+                  <div className="space-y-1.5">
+                    {matchedBookmarks.map((bm) => (
+                      <div
+                        key={bm.id}
+                        onClick={() => {
+                          recordBookmarkClick(bm.id);
+                          window.open(bm.url, '_blank', 'noopener,noreferrer');
+                          setIsSearchOpen(false);
+                        }}
+                        className="p-2.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50 flex items-center justify-between gap-3 cursor-pointer transition-colors group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-2xs">
+                            {bm.faviconUrl ? (
+                              <img src={bm.faviconUrl} alt={bm.title} className="w-4 h-4 object-contain rounded-full" />
+                            ) : (
+                              <Bookmark className="w-3.5 h-3.5 text-blue-600" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-semibold text-slate-900 block truncate group-hover:text-blue-600 transition-colors">
+                              {bm.title}
+                            </span>
+                            <span className="text-[11px] text-slate-500 block truncate">
+                              {bm.category} · {bm.subcategory || 'General'} · <span className="font-mono text-slate-400">{bm.url}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                       </div>
                     ))}
                   </div>

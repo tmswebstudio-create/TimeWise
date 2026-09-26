@@ -19,7 +19,8 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { formatCurrentDate } from '../../utils/timeUtils';
-import { TimeWiseMark } from '../common/TimeWiseLogo';
+import { TimeWiseLogo, TimeWiseMark } from '../common/TimeWiseLogo';
+import { PWAInstallButton } from '../common/PWAInstallButton';
 
 export const Header: React.FC = () => {
   const {
@@ -85,35 +86,25 @@ export const Header: React.FC = () => {
           )}
         </button>
 
-        {/* Mobile Logo Mark */}
+        {/* Mobile Logo & Brand */}
         <div className="md:hidden flex items-center gap-2 mr-1">
           <button
+            type="button"
             onClick={() => setActiveView('tasks')}
-            className="hover:opacity-85 transition-opacity"
+            className="hover:opacity-90 transition-opacity flex items-center"
             title="TimeWise"
           >
-            <TimeWiseMark className="w-7 h-7" />
+            <TimeWiseLogo size="md" />
           </button>
         </div>
 
-        {activeView === 'tasks' && (
-          <div className="flex items-center gap-2">
-            <h1 className="text-base font-semibold text-slate-900 tracking-tight">Tasks</h1>
-            <span className="hidden sm:inline-block text-xs text-slate-400 font-normal">
-              · {formatCurrentDate(currentTime)}
-            </span>
-          </div>
-        )}
-
-        {activeView === 'goals' && (
-          <h1 className="text-base font-semibold text-slate-900 tracking-tight">Learning Goals</h1>
-        )}
-
+        {/* Breadcrumb Navigation for Nested Views only */}
         {activeView === 'goal-detail' && currentGoal && (
           <div className="flex items-center gap-1.5 text-xs text-slate-500 overflow-hidden">
             <button
+              type="button"
               onClick={() => setActiveView('goals')}
-              className="hover:text-blue-600 transition-colors flex items-center gap-1 text-slate-600"
+              className="hover:text-blue-600 transition-colors flex items-center gap-1 text-slate-600 cursor-pointer"
             >
               <Compass className="w-3.5 h-3.5" />
               <span>Goals</span>
@@ -126,15 +117,17 @@ export const Header: React.FC = () => {
         {activeView === 'module-detail' && currentGoal && currentModule && (
           <div className="flex items-center gap-1.5 text-xs text-slate-500 overflow-hidden">
             <button
+              type="button"
               onClick={() => setActiveView('goals')}
-              className="hover:text-blue-600 transition-colors hidden sm:inline"
+              className="hover:text-blue-600 transition-colors hidden sm:inline cursor-pointer"
             >
               Goals
             </button>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 hidden sm:inline" />
             <button
+              type="button"
               onClick={() => setActiveView('goal-detail', currentGoal.id)}
-              className="hover:text-blue-600 transition-colors truncate max-w-[120px] text-slate-600"
+              className="hover:text-blue-600 transition-colors truncate max-w-[120px] text-slate-600 cursor-pointer"
             >
               {currentGoal.title}
             </button>
@@ -143,14 +136,6 @@ export const Header: React.FC = () => {
               {currentModule.code}. {currentModule.title}
             </span>
           </div>
-        )}
-
-        {activeView === 'progress' && (
-          <h1 className="text-base font-semibold text-slate-900 tracking-tight">Progress & Analytics</h1>
-        )}
-
-        {activeView === 'settings' && (
-          <h1 className="text-base font-semibold text-slate-900 tracking-tight">Settings</h1>
         )}
       </div>
 
@@ -177,6 +162,9 @@ export const Header: React.FC = () => {
           <Plus className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">New Task</span>
         </button>
+
+        {/* PWA Install Button */}
+        <PWAInstallButton variant="header" />
 
         {/* User Account / Auth Trigger */}
         <div className="relative" ref={userMenuRef}>
@@ -205,7 +193,7 @@ export const Header: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-600 font-medium">
                       <Cloud className="w-3 h-3" />
-                      <span>Connected to Firebase (timewise-16f3e)</span>
+                      <span>Connected to Firebase Firestore</span>
                     </div>
                   </div>
 
