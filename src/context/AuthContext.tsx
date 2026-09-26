@@ -39,11 +39,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
       if (currentUser) {
+        setUser(currentUser);
         setIsGuest(currentUser.isAnonymous);
+        localStorage.removeItem('timewise_local_guest');
       } else {
-        setIsGuest(false);
+        // Check if there is an active local guest session
+        try {
+          const savedGuest = localStorage.getItem('timewise_local_guest');
+          if (savedGuest) {
+            const parsedGuest = JSON.parse(savedGuest);
+            setUser(parsedGuest);
+            setIsGuest(true);
+          } else {
+            setUser(null);
+            setIsGuest(false);
+          }
+        } catch (e) {
+          setUser(null);
+          setIsGuest(false);
+        }
       }
       setLoading(false);
     });
@@ -158,12 +173,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInAsGuest = async () => {
     try {
       setAuthError(null);
+      let guestAccount: any = null;
       try {
         const userCredential = await signInAnonymously(auth);
-        const guestUser = userCredential.user;
-        const userDocRef = doc(db, 'users', guestUser.uid);
+        guestAccount = userCredential.user;
+        const userDocRef = doc(db, 'users', guestAccount.uid);
         await setDoc(userDocRef, {
-          uid: guestUser.uid,
+          uid: guestAccount.uid,
           email: 'guest@timewise.local',
           displayName: 'Guest Learner',
           isGuest: true,
@@ -174,9 +190,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
+        setUser(guestAccount);
+        setIsGuest(true);
       } catch (anonErr) {
         console.warn('Anonymous auth not enabled in console, using local guest session:', anonErr);
-        // If Anonymous auth provider is disabled in Firebase console, we fallback seamlessly
+        // Fallback robust guest session
+        const guestUid = localStorage.getItem('timewise_guest_uid') || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        localStorage.setItem('timewise_guest_uid', guestUid);
+        guestAccount = {
+          uid: guestUid,
+          email: 'guest@timewise.local',
+          displayName: 'Guest Learner',
+          isAnonymous: true,
+        };
+        localStorage.setItem('timewise_local_guest', JSON.stringify(guestAccount));
+        setUser(guestAccount as User);
+        setIsGuest(true);
       }
       setIsAuthModalOpen(false);
     } catch (error: any) {
@@ -189,9 +218,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 4. Sign Out
   const signOutUser = async () => {
     try {
-      await signOut(auth);
+      localStorage.removeItem('timewise_local_guest');
       setUser(null);
       setIsGuest(false);
+      await signOut(auth);
     } catch (error) {
       console.error('Sign out error:', error);
     }

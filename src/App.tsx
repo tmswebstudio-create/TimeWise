@@ -1,5 +1,5 @@
 import React from 'react';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
@@ -23,11 +23,38 @@ import { ProgressView } from './components/progress/ProgressView';
 import { SettingsView } from './components/settings/SettingsView';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { AuthModal } from './components/auth/AuthModal';
+import { AuthPage } from './components/auth/AuthPage';
+import { TimeWiseMark } from './components/common/TimeWiseLogo';
 import { Toast } from './components/common/Toast';
 
 const AppContent: React.FC = () => {
+  const { user, loading } = useAuth();
   const { activeView, isRightPanelOpen } = useApp();
 
+  // Initial loading splash screen
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4 text-white">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 animate-pulse">
+            <TimeWiseMark className="w-10 h-10 text-white" />
+          </div>
+          <div className="absolute -inset-1 rounded-2xl bg-blue-500/20 blur-md animate-ping" />
+        </div>
+        <div className="text-center space-y-1">
+          <p className="font-heading font-semibold text-sm tracking-wide text-slate-200">TimeWise</p>
+          <p className="text-xs text-slate-400">Loading your learning workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 1. FIRST PAGE: If user is not authenticated and not in guest session, show the AuthPage
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  // 2. MAIN WORKSPACE: Shown once user signs in, creates account, or logs in as guest
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex">
       {/* Desktop Left Sidebar */}
