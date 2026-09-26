@@ -457,16 +457,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             } catch (e) {}
           }
 
-          // Initial load: seed initialBookmarks for user
-          setBookmarks(initialBookmarks);
+          // Start with a clean list of bookmarks for new users
+          setBookmarks([]);
           try {
-            localStorage.setItem(`timewise_bookmarks_${userId}`, JSON.stringify(initialBookmarks));
+            localStorage.setItem(`timewise_bookmarks_${userId}`, JSON.stringify([]));
           } catch (e) {}
-
-          initialBookmarks.forEach((bm) => {
-            const bmDocRef = doc(db, 'users', userId, 'bookmarks', bm.id);
-            setDoc(bmDocRef, sanitizeForFirestore({ ...bm, userId })).catch(() => {});
-          });
         } else {
           setBookmarks(fetchedBookmarks);
           try {
@@ -476,8 +471,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
       (err) => {
         handleFirestoreError(err, OperationType.LIST, `users/${userId}/bookmarks`);
-        // Fallback to local storage or defaults
-        const raw: string = localStorage.getItem(`timewise_bookmarks_${userId}`) || localStorage.getItem('timewise_bookmarks') || '';
+        // Fallback to local storage
+        const raw: string = localStorage.getItem(`timewise_bookmarks_${userId}`) || '';
         if (raw) {
           try {
             const parsed = JSON.parse(raw);
@@ -487,7 +482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } catch (e) {}
         }
-        setBookmarks(initialBookmarks);
+        setBookmarks([]);
       }
     );
 
