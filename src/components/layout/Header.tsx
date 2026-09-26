@@ -3,7 +3,6 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import {
   Search,
-  Plus,
   Compass,
   ChevronRight,
   PanelRightClose,
@@ -14,13 +13,9 @@ import {
   LogOut,
   User,
   Cloud,
-  CheckCircle2,
-  Sparkles,
   ChevronDown,
 } from 'lucide-react';
-import { formatCurrentDate } from '../../utils/timeUtils';
-import { TimeWiseLogo, TimeWiseMark } from '../common/TimeWiseLogo';
-import { PWAInstallButton } from '../common/PWAInstallButton';
+import { TimeWiseMark } from '../common/TimeWiseLogo';
 
 export const Header: React.FC = () => {
   const {
@@ -30,14 +25,11 @@ export const Header: React.FC = () => {
     selectedGoalId,
     selectedModuleId,
     setActiveView,
-    openTaskForm,
     setIsSearchOpen,
-    currentTime,
     isRightPanelOpen,
     toggleRightPanel,
     isSidebarCollapsed,
     toggleSidebar,
-    isCloudSyncing,
   } = useApp();
 
   const { user, isGuest, signOutUser, openAuthModal } = useAuth();
@@ -86,15 +78,14 @@ export const Header: React.FC = () => {
           )}
         </button>
 
-        {/* Mobile Logo & Brand */}
+        {/* Mobile Logo Mark */}
         <div className="md:hidden flex items-center gap-2 mr-1">
           <button
-            type="button"
             onClick={() => setActiveView('tasks')}
-            className="hover:opacity-90 transition-opacity flex items-center"
+            className="hover:opacity-85 transition-opacity"
             title="TimeWise"
           >
-            <TimeWiseLogo size="md" />
+            <TimeWiseMark className="w-7 h-7" />
           </button>
         </div>
 
@@ -153,18 +144,6 @@ export const Header: React.FC = () => {
             ⌘K
           </kbd>
         </button>
-
-        {/* Schedule Task Button */}
-        <button
-          onClick={() => openTaskForm()}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-lg transition-colors shadow-xs"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">New Task</span>
-        </button>
-
-        {/* PWA Install Button */}
-        <PWAInstallButton variant="header" />
 
         {/* User Account / Auth Trigger */}
         <div className="relative" ref={userMenuRef}>
