@@ -428,133 +428,12 @@ export const fetchYoutubeMetadata = async (urlOrId: string): Promise<YoutubeVide
 export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<any[]> => {
   if (!playlistId) return [];
 
-  // Attempt 1: Fetch and parse direct YouTube RSS XML via reliable CORS proxies
-  try {
-    const rssUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
-    const proxies = [
-      `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`,
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(rssUrl)}`
-    ];
-
-    for (const proxyUrl of proxies) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout limit
-
-        const response = await fetch(proxyUrl, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          const json = await response.json();
-          const xmlText = json.contents || json; // allorigins stores in json.contents, codetabs returns text/xml directly
-          
-          if (xmlText && typeof xmlText === 'string' && (xmlText.includes('<feed') || xmlText.includes('<entry'))) {
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-            const entries = xmlDoc.getElementsByTagName('entry');
-            const videos: any[] = [];
-
-            for (let i = 0; i < entries.length; i++) {
-              const entry = entries[i];
-              
-              // Get videoId
-              let videoId = '';
-              const idNode = entry.getElementsByTagName('yt:videoId')[0] || entry.getElementsByTagName('videoId')[0];
-              if (idNode) {
-                videoId = idNode.textContent?.trim() || '';
-              }
-              if (!videoId) {
-                const linkNode = entry.getElementsByTagName('link')[0];
-                const href = linkNode?.getAttribute('href') || '';
-                const match = href.match(/[?&]v=([\w-]{11})/);
-                if (match) videoId = match[1];
-              }
-
-              // Get title
-              const title = entry.getElementsByTagName('title')[0]?.textContent?.trim() || 'YouTube Video';
-
-              // Get channel
-              let channel = '';
-              const authorNode = entry.getElementsByTagName('author')[0];
-              if (authorNode) {
-                channel = authorNode.getElementsByTagName('name')[0]?.textContent?.trim() || '';
-              }
-
-              // Get thumbnail
-              let thumbnail = '';
-              const thumbNode = entry.getElementsByTagName('media:thumbnail')[0] || entry.getElementsByTagName('thumbnail')[0];
-              if (thumbNode) {
-                thumbnail = thumbNode.getAttribute('url') || '';
-              }
-              if (!thumbnail && videoId) {
-                thumbnail = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
-              }
-
-              if (videoId) {
-                videos.push({
-                  videoId,
-                  title,
-                  channel: channel || 'YouTube Creator',
-                  durationSeconds: 300, // RSS placeholder
-                  thumbnail,
-                  index: i,
-                });
-              }
-            }
-
-            if (videos.length > 0) {
-              return videos;
-            }
-          }
-        }
-      } catch (proxyErr) {
-        console.warn(`Proxy RSS failed for URL ${proxyUrl}:`, proxyErr);
-      }
-    }
-  } catch (err) {
-    console.warn('Official RSS parser parent block error:', err);
-  }
-
-  // Attempt 2: rss2json online converter fallback
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-    const response = await fetch(
-      `https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.youtube.com%2Ffeeds%2Fvideos.xml%3Fplaylist_id%3D${playlistId}`,
-      { signal: controller.signal }
-    );
-    clearTimeout(timeoutId);
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.items && Array.isArray(data.items)) {
-        return data.items
-          .map((item: any, i: number) => {
-            const videoIdMatch = item.link?.match(/v=([\w-]{11})/);
-            const videoId = videoIdMatch ? videoIdMatch[1] : '';
-            return {
-              videoId,
-              title: item.title || 'YouTube Video',
-              channel: item.author || 'YouTube Creator',
-              durationSeconds: 300,
-              thumbnail: item.thumbnail || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-              index: i,
-            };
-          })
-          .filter((v: any) => v.videoId);
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to fetch from RSS converter fallback:', err);
-  }
-
-  // Attempt 3: Invidious Instances fallback
   const instances = [
     'https://invidious.flokinet.to',
     'https://yewtu.be',
     'https://inv.tux.im',
     'https://invidious.projectsegfau.lt',
-    'https://invidious.io.lol',
+    'https://invidious.io.lol'
   ];
 
   for (const instance of instances) {
@@ -572,7 +451,7 @@ export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<an
         if (data && Array.isArray(data.videos)) {
           return data.videos.map((vid: any, i: number) => ({
             videoId: vid.videoId,
-            title: vid.title || 'YouTube Video',
+            title: vid.title,
             channel: vid.author || data.author || 'YouTube Creator',
             durationSeconds: vid.lengthSeconds || 300,
             thumbnail: vid.videoThumbnails?.[0]?.url || `https://img.youtube.com/vi/${vid.videoId}/mqdefault.jpg`,
@@ -583,6 +462,30 @@ export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<an
     } catch (err) {
       console.warn(`Failed to fetch from invidious instance ${instance}:`, err);
     }
+  }
+
+  // RSS-to-JSON online parser fallback
+  try {
+    const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.youtube.com%2Ffeeds%2Fvideos.xml%3Fplaylist_id%3D${playlistId}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.items && Array.isArray(data.items)) {
+        return data.items.map((item: any, i: number) => {
+          const videoIdMatch = item.link?.match(/v=([\w-]{11})/);
+          const videoId = videoIdMatch ? videoIdMatch[1] : '';
+          return {
+            videoId,
+            title: item.title,
+            channel: item.author || 'YouTube Creator',
+            durationSeconds: 300,
+            thumbnail: item.thumbnail || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+            index: i,
+          };
+        }).filter((v: any) => v.videoId);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch from RSS fallback:', err);
   }
 
   return [];
