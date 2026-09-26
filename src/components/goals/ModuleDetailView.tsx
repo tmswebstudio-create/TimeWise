@@ -141,30 +141,47 @@ export const ModuleDetailView: React.FC = () => {
       {/* MODULE HEADER */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-medium text-blue-600 uppercase tracking-wider">
-                {goal.title} · Module {moduleItem.code}
-              </span>
-              <span
-                className={`text-[10px] font-semibold px-2 py-0.2 rounded-md border ${
-                  isFullyCompleted
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : displayProgress > 0
-                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                    : 'bg-slate-50 text-slate-600 border-slate-200'
-                }`}
-              >
-                {isFullyCompleted ? '✓ Completed' : displayProgress > 0 ? 'In Progress' : 'Not Started'}
-              </span>
-            </div>
+          <div className="flex gap-4 items-start flex-1 min-w-0">
+            {moduleItem.imageUrl ? (
+              <img
+                src={moduleItem.imageUrl}
+                alt=""
+                className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-200/60 bg-slate-100 shadow-xs"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=120&q=80';
+                }}
+              />
+            ) : moduleItem.icon ? (
+              <div className="w-16 h-16 rounded-xl shrink-0 flex items-center justify-center bg-slate-50 border border-slate-200 text-3xl shadow-xs">
+                {moduleItem.icon}
+              </div>
+            ) : null}
 
-            <h1 className="text-xl sm:text-2xl font-heading font-semibold text-slate-900 tracking-tight">
-              {moduleItem.code}. {moduleItem.title}
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-              {moduleItem.description}
-            </p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium text-blue-600 uppercase tracking-wider">
+                  {goal.title} · Module {moduleItem.code}
+                </span>
+                <span
+                  className={`text-[10px] font-semibold px-2 py-0.2 rounded-md border ${
+                    isFullyCompleted
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : displayProgress > 0
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-slate-50 text-slate-600 border-slate-200'
+                  }`}
+                >
+                  {isFullyCompleted ? '✓ Completed' : displayProgress > 0 ? 'In Progress' : 'Not Started'}
+                </span>
+              </div>
+
+              <h1 className="text-xl sm:text-2xl font-heading font-semibold text-slate-900 tracking-tight">
+                {moduleItem.code}. {moduleItem.title}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                {moduleItem.description}
+              </p>
+            </div>
           </div>
 
           {/* Module Action Buttons */}

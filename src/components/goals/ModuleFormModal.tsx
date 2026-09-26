@@ -23,6 +23,8 @@ export const ModuleFormModal: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [notes, setNotes] = useState('');
   const [goalId, setGoalId] = useState(preselectedGoalId || selectedGoalId || goals[0]?.id || '');
+  const [icon, setIcon] = useState('💻');
+  const [imageUrl, setImageUrl] = useState('');
 
   useEffect(() => {
     if (moduleToEdit) {
@@ -34,6 +36,8 @@ export const ModuleFormModal: React.FC = () => {
       setProgress(moduleToEdit.progress);
       setNotes(moduleToEdit.notes || '');
       setGoalId(moduleToEdit.goalId);
+      setIcon(moduleToEdit.icon || '💻');
+      setImageUrl(moduleToEdit.imageUrl || '');
     } else {
       setTitle('');
       setCode('01');
@@ -43,6 +47,8 @@ export const ModuleFormModal: React.FC = () => {
       setProgress(0);
       setNotes('');
       setGoalId(preselectedGoalId || selectedGoalId || goals[0]?.id || '');
+      setIcon('💻');
+      setImageUrl('');
     }
   }, [moduleToEdit, isModuleFormOpen, preselectedGoalId, selectedGoalId, goals]);
 
@@ -62,6 +68,8 @@ export const ModuleFormModal: React.FC = () => {
         progress: Number(progress) || 0,
         notes: notes.trim(),
         goalId,
+        icon,
+        imageUrl: imageUrl.trim() || undefined,
       });
     } else {
       addModule({
@@ -73,6 +81,8 @@ export const ModuleFormModal: React.FC = () => {
         status,
         progress: Number(progress) || 0,
         notes: notes.trim(),
+        icon,
+        imageUrl: imageUrl.trim() || undefined,
       });
     }
 
@@ -185,6 +195,66 @@ export const ModuleFormModal: React.FC = () => {
               placeholder="Summary of topics covered in this module..."
               className="w-full p-2.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Module Icon / Image Option
+            </label>
+            <div className="space-y-2">
+              {/* Presets Grid */}
+              <div className="flex flex-wrap gap-2">
+                {['💻', '📚', '🧠', '🔬', '🎨', '⚙️', '🌐', '📊', '🔧', '🚀', '✏️', '🏆'].map((emojiPreset) => (
+                  <button
+                    key={emojiPreset}
+                    type="button"
+                    onClick={() => {
+                      setIcon(emojiPreset);
+                      setImageUrl(''); // Clear custom URL if selecting an emoji preset
+                    }}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-base border transition-all ${
+                      icon === emojiPreset && !imageUrl
+                        ? 'bg-blue-50 border-blue-500 scale-105 shadow-xs'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {emojiPreset}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Image URL or Custom Emoji */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">
+                    Custom Emoji Icon
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={icon}
+                    onChange={(e) => {
+                      setIcon(e.target.value);
+                      setImageUrl('');
+                    }}
+                    placeholder="e.g. 🎯"
+                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">
+                    Or Image URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="e.g. https://images.unsplash.com/..."
+                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 truncate"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div>

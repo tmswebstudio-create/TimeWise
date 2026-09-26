@@ -61,6 +61,8 @@ export interface Module {
   status: ModuleStatus;
   progress: number; // 0 - 100
   notes: string;
+  icon?: string;
+  imageUrl?: string;
 }
 
 export type ResourceType = 'youtube' | 'article' | 'documentation' | 'reference';

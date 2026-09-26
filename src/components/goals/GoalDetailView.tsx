@@ -285,22 +285,37 @@ export const GoalDetailView: React.FC = () => {
                 }`}
               >
                 <div className="flex items-start gap-4 flex-1 min-w-0">
-                  {/* Module Code Badge / Status Icon */}
-                  <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center font-heading font-bold text-xs shrink-0 ${
-                      isFullyCompleted
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : isStarted
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {isFullyCompleted ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    ) : (
-                      moduleItem.code
-                    )}
-                  </div>
+                  {/* Module Code Badge / Status Icon / Custom Icon / Custom Image */}
+                  {moduleItem.imageUrl ? (
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden shrink-0 shadow-xs border border-slate-200/60 bg-slate-100 flex items-center justify-center">
+                      <img
+                        src={moduleItem.imageUrl}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=120&q=80';
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center font-heading font-bold shrink-0 transition-colors border ${
+                        isFullyCompleted
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                          : isStarted
+                          ? 'bg-blue-50 text-blue-700 border-blue-200/80'
+                          : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                      }`}
+                    >
+                      {moduleItem.icon ? (
+                        <span className="text-xl sm:text-2xl">{moduleItem.icon}</span>
+                      ) : isFullyCompleted ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      ) : (
+                        <span className="text-xs font-mono font-bold">{moduleItem.code}</span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Title & Description */}
                   <div className="flex-1 min-w-0">
