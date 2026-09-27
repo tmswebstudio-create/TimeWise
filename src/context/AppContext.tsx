@@ -22,6 +22,7 @@ import {
   initialBookmarks,
 } from '../data/initialData';
 import { getTodayDateString, addDays } from '../utils/timeUtils';
+import { parseCurrentRoute, formatRoutePath } from '../utils/routeUtils';
 import { useAuth } from './AuthContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
@@ -211,16 +212,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     'General',
   ]);
 
-  // View & Nav State (Initialized from localStorage to persist across reloads)
+  // View & Nav State (Initialized from URL route or localStorage)
+  const initialRoute = parseCurrentRoute();
+
   const [activeView, setActiveViewRaw] = useState<ActiveView>(() => {
+    // If URL path is explicitly defined (like /goals or /bookmarks), use it!
+    if (window.location.pathname !== '/' && window.location.pathname !== '/tasks') {
+      return initialRoute.view;
+    }
+    // Otherwise fallback to localStorage if available
     try {
       const saved = localStorage.getItem('timewise_active_view');
       if (saved) return saved as ActiveView;
     } catch (e) {}
-    return 'tasks';
+    return initialRoute.view;
   });
 
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(() => {
+    if (initialRoute.goalId) return initialRoute.goalId;
     try {
       const saved = localStorage.getItem('timewise_selected_goal_id');
       if (saved) return saved;
@@ -229,6 +238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(() => {
+    if (initialRoute.moduleId) return initialRoute.moduleId;
     try {
       const saved = localStorage.getItem('timewise_selected_module_id');
       if (saved) return saved;
@@ -238,7 +248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
-  // Sync Nav State to localStorage
+  // Sync Nav State to localStorage & URL Route
   useEffect(() => {
     try {
       localStorage.setItem('timewise_active_view', activeView);
@@ -264,6 +274,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (e) {}
   }, [selectedModuleId]);
+
+  // Sync URL route on mount and browser back/forward (popstate)
+  useEffect(() => {
+    const currentPath = formatRoutePath(activeView, selectedGoalId, selectedModuleId);
+    if (window.location.pathname !== currentPath && !window.location.hash) {
+      window.history.replaceState({ view: activeView, goalId: selectedGoalId, moduleId: selectedModuleId }, '', currentPath);
+    }
+
+    const handlePopState = () => {
+      const route = parseCurrentRoute();
+      setActiveViewRaw(route.view);
+      setSelectedGoalId(route.goalId);
+      setSelectedModuleId(route.moduleId);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Website Bookmarks State
   const [bookmarks, setBookmarks] = useState<WebsiteBookmark[]>([]);
@@ -502,17 +530,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Navigation Helper
   const setActiveView = (view: ActiveView, goalId?: string, moduleId?: string) => {
-    setActiveViewRaw(view);
-    if (goalId) {
-      setSelectedGoalId(goalId);
-    } else if (view !== 'goal-detail' && view !== 'module-detail') {
-      setSelectedGoalId(null);
-    }
+    const nextGoalId = goalId ?? (view === 'goal-detail' || view === 'module-detail' ? selectedGoalId : null);
+    const nextModuleId = moduleId ?? (view === 'module-detail' ? selectedModuleId : null);
 
-    if (moduleId) {
-      setSelectedModuleId(moduleId);
-    } else if (view !== 'module-detail') {
-      setSelectedModuleId(null);
+    setActiveViewRaw(view);
+    setSelectedGoalId(nextGoalId);
+    setSelectedModuleId(nextModuleId);
+
+    const newPath = formatRoutePath(view, nextGoalId, nextModuleId);
+    if (window.location.pathname !== newPath) {
+      window.history.pushState({ view, goalId: nextGoalId, moduleId: nextModuleId }, '', newPath);
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
