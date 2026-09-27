@@ -629,11 +629,18 @@ const ResourceItemRow: React.FC<ResourceItemRowProps> = ({
           )}
 
           {/* Video Duration Overlay */}
-          {resource.durationSeconds > 0 && (
-            <span className="absolute bottom-1 right-1 font-tabular text-[10px] font-semibold text-white bg-black/85 px-1.5 py-0.5 rounded shadow-xs">
-              {formatSecondsToTime(resource.durationSeconds)}
-            </span>
-          )}
+          {(() => {
+            const playlistSumSec = (resource.isPlaylist && resource.playlistVideos && resource.playlistVideos.length > 0)
+              ? resource.playlistVideos.reduce((acc, v) => acc + (v.durationSeconds || 0), 0)
+              : 0;
+            const displaySec = playlistSumSec > 0 ? playlistSumSec : resource.durationSeconds;
+            if (!displaySec || displaySec <= 0) return null;
+            return (
+              <span className="absolute bottom-1 right-1 font-tabular text-[10px] font-semibold text-white bg-black/85 px-1.5 py-0.5 rounded shadow-xs">
+                {formatSecondsToTime(displaySec)}
+              </span>
+            );
+          })()}
 
           {/* Play Icon Overlay */}
           <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/10 transition-colors">

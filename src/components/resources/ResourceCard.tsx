@@ -62,9 +62,13 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
   const goal = goals.find((g) => g.id === resource.goalId);
   const moduleItem = modules.find((m) => m.id === resource.moduleId);
 
-  const duration = resource.durationSeconds || 1800;
-  
   const isPlaylist = !!resource.isPlaylist;
+
+  const playlistSumSec = (isPlaylist && resource.playlistVideos && resource.playlistVideos.length > 0)
+    ? resource.playlistVideos.reduce((acc, v) => acc + (v.durationSeconds || 0), 0)
+    : 0;
+
+  const duration = playlistSumSec > 0 ? playlistSumSec : (resource.durationSeconds || 1800);
   const totalVideos = resource.playlistVideos?.length || 0;
   const completedVideos = resource.completedVideoIds?.length || 0;
   const playlistProgressPct = totalVideos > 0 ? Math.min(100, Math.round((completedVideos / totalVideos) * 100)) : 0;

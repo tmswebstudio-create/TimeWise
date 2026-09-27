@@ -152,16 +152,17 @@ export const ResourceFormModal: React.FC = () => {
         setThumbnailFallback(meta.thumbnailFallback || '');
         
         if (meta.isPlaylist && meta.playlistId) {
-          const fetchedVids = await fetchYoutubePlaylistVideos(meta.playlistId);
+          const fetchedVids = (meta.playlistVideos && meta.playlistVideos.length > 0)
+            ? meta.playlistVideos
+            : await fetchYoutubePlaylistVideos(meta.playlistId);
+
           setPlaylistVideos(fetchedVids);
-          if (fetchedVids.length > 0) {
-            const totalSec = fetchedVids.reduce((sum, v) => sum + (v.durationSeconds || 300), 0);
-            setDurationMinutes(Math.max(1, Math.round(totalSec / 60)));
-            setExactDurationSeconds(totalSec);
-          } else {
-            setDurationMinutes(meta.durationMinutes);
-            setExactDurationSeconds(meta.durationSeconds);
-          }
+          const totalSec = fetchedVids && fetchedVids.length > 0
+            ? fetchedVids.reduce((sum: number, v: any) => sum + (v.durationSeconds || 300), 0)
+            : meta.durationSeconds;
+
+          setDurationMinutes(Math.max(1, Math.round(totalSec / 60)));
+          setExactDurationSeconds(totalSec);
         } else {
           setDurationMinutes(meta.durationMinutes);
           setExactDurationSeconds(meta.durationSeconds);
