@@ -134,10 +134,11 @@ export function calculateTaskTiming(task: Task, now: Date = new Date()): TaskTim
 
   if (nowMs >= startMs && nowMs <= endMs) {
     const remainingMs = endMs - nowMs;
-    const remainingSec = Math.floor(remainingMs / 1000);
-    const mm = Math.floor(remainingSec / 60);
+    const remainingSec = Math.max(0, Math.floor(remainingMs / 1000));
+    const hh = Math.floor(remainingSec / 3600);
+    const mm = Math.floor((remainingSec % 3600) / 60);
     const ss = remainingSec % 60;
-    const formatted = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')} remaining`;
+    const formatted = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')} remaining`;
 
     const elapsed = Math.min(100, Math.max(0, ((nowMs - startMs) / totalDurationMs) * 100));
     const isNearEnd = remainingSec <= 600; // 10 minutes or less
