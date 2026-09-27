@@ -455,102 +455,13 @@ export const fetchYoutubeMetadata = async (urlOrId: string): Promise<YoutubeVide
 };
 
 /**
- * Universal helper to parse any duration value into total seconds:
- * - Number: 252 -> 252
- * - Colon string: "4:12" -> 252, "1:02:15" -> 3735
- * - Digit string: "252" -> 252
- * - ISO 8601 string: "PT4M12S" -> 252, "PT1H20M" -> 4800
- * - Text: "4 minutes 12 seconds", "1 hour 20 mins" -> 4800
- */
-export const parseAnyDurationToSeconds = (val: any): number => {
-  if (val === null || val === undefined) return 0;
-
-  if (typeof val === 'number' && !isNaN(val) && val > 0) {
-    return Math.round(val);
-  }
-
-  if (typeof val === 'string') {
-    const trimmed = val.trim();
-    if (!trimmed) return 0;
-
-    // Colon format: "12:34" or "1:02:15"
-    if (trimmed.includes(':')) {
-      const sec = parseSimpleTextDurationToSeconds(trimmed);
-      if (sec > 0) return sec;
-    }
-
-    // Digit string: "252"
-    if (/^\d+$/.test(trimmed)) {
-      const num = parseInt(trimmed, 10);
-      if (!isNaN(num) && num > 0) return num;
-    }
-
-    // ISO 8601 format: "PT4M12S" or "PT1H23M45S"
-    if (trimmed.startsWith('PT') || (trimmed.includes('M') && trimmed.includes('S'))) {
-      const matchH = trimmed.match(/(\d+)H/i);
-      const matchM = trimmed.match(/(\d+)M/i);
-      const matchS = trimmed.match(/(\d+)S/i);
-      const h = matchH ? parseInt(matchH[1], 10) : 0;
-      const m = matchM ? parseInt(matchM[1], 10) : 0;
-      const s = matchS ? parseInt(matchS[1], 10) : 0;
-      const total = h * 3600 + m * 60 + s;
-      if (total > 0) return total;
-    }
-
-    // Natural text: "4 minutes, 12 seconds" or "1 hour 20 minutes"
-    let totalTextSec = 0;
-    const hourMatch = trimmed.match(/(\d+)\s*h(?:our)?s?/i);
-    const minMatch = trimmed.match(/(\d+)\s*m(?:in(?:ute)?)?s?/i);
-    const secMatch = trimmed.match(/(\d+)\s*s(?:ec(?:ond)?)?s?/i);
-    if (hourMatch) totalTextSec += parseInt(hourMatch[1], 10) * 3600;
-    if (minMatch) totalTextSec += parseInt(minMatch[1], 10) * 60;
-    if (secMatch) totalTextSec += parseInt(secMatch[1], 10);
-    if (totalTextSec > 0) return totalTextSec;
-  }
-
-  return 0;
-};
-
-/**
  * Fetch all videos of a YouTube playlist with exact durations using high-availability
  * Piped API instances, direct YouTube HTML scraping via CORS proxies, and Invidious API instances.
  */
 export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<any[]> => {
   if (!playlistId) return [];
 
-  // Function to finalize playlist video items, filling any missing duration with average/heuristics
-  const finalizeVideos = (rawList: any[]): any[] => {
-    if (!Array.isArray(rawList) || rawList.length === 0) return [];
-
-    const knownDurations = rawList
-      .map((v) => v.durationSeconds)
-      .filter((d) => typeof d === 'number' && d > 0);
-
-    const avgDuration = knownDurations.length > 0
-      ? Math.round(knownDurations.reduce((a, b) => a + b, 0) / knownDurations.length)
-      : 300;
-
-    return rawList.map((vid: any, i: number) => {
-      let dur = parseAnyDurationToSeconds(vid.durationSeconds || vid.duration || vid.lengthSeconds || vid.length);
-      if (dur <= 0 && vid.title) {
-        dur = parseDurationFromTitle(vid.title) || 0;
-      }
-      if (dur <= 0) {
-        dur = avgDuration;
-      }
-
-      return {
-        videoId: vid.videoId || '',
-        title: vid.title || `Video ${i + 1}`,
-        channel: vid.channel || vid.author || 'YouTube Creator',
-        durationSeconds: dur,
-        thumbnail: vid.thumbnail || (vid.videoId ? getYoutubeThumbnail(vid.videoId, 'hq') : ''),
-        index: i,
-      };
-    }).filter((v: any) => v.videoId);
-  };
-
-  // Strategy 1: Piped API Endpoints
+  // Strategy 1: Piped API Endpoints (Provides exact duration in seconds for EVERY video in relatedStreams)
   const pipedInstances = [
     'https://pipedapi.kavin.rocks',
     'https://api.piped.yt',
@@ -574,11 +485,12 @@ export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<an
         const data = await response.json();
         const rawStreams = data.relatedStreams || data.videos || [];
         if (Array.isArray(rawStreams) && rawStreams.length > 0) {
-          const list = rawStreams.map((vid: any, i: number) => {
+          return rawStreams.map((vid: any, i: number) => {
             const vIdMatch = vid.url?.match(/v=([\w-]{11})/);
             const videoId = vIdMatch ? vIdMatch[1] : (vid.videoId || '');
-            const rawDur = vid.duration ?? vid.lengthSeconds ?? vid.length ?? vid.durationSeconds;
-            const dur = parseAnyDurationToSeconds(rawDur);
+            const dur = typeof vid.duration === 'number' && vid.duration > 0
+              ? vid.duration
+              : parseDurationFromTitle(vid.title || '') || 300;
 
             return {
               videoId,
@@ -588,18 +500,15 @@ export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<an
               thumbnail: vid.thumbnail || (videoId ? getYoutubeThumbnail(videoId, 'hq') : ''),
               index: i,
             };
-          });
-
-          const finalized = finalizeVideos(list);
-          if (finalized.length > 0) return finalized;
+          }).filter((v: any) => v.videoId);
         }
       }
     } catch {
-      // try next
+      // try next instance
     }
   }
 
-  // Strategy 2: Direct YouTube HTML Scraping via CORS Proxies
+  // Strategy 2: Direct YouTube HTML Scraping via CORS Proxies (bakes ytInitialData with playlistVideoRenderer)
   const proxyUrls = [
     `https://corsproxy.io/?url=https%3A%2F%2Fwww.youtube.com%2Fplaylist%3Flist%3D${playlistId}`,
     `https://api.allorigins.win/raw?url=https%3A%2F%2Fwww.youtube.com%2Fplaylist%3Flist%3D${playlistId}`,
@@ -632,24 +541,14 @@ export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<an
             }
 
             if (!durationSec || durationSec <= 0) {
-              const simpleTextMatch = chunk.match(/"lengthText"\s*:\s*\{\s*"simpleText"\s*:\s*"([^"]+)"/);
-              if (simpleTextMatch) {
-                durationSec = parseAnyDurationToSeconds(simpleTextMatch[1]);
+              const lengthTextMatch = chunk.match(/"lengthText"\s*:\s*\{\s*"simpleText"\s*:\s*"([^"]+)"/);
+              if (lengthTextMatch) {
+                durationSec = parseSimpleTextDurationToSeconds(lengthTextMatch[1]);
               }
             }
 
             if (!durationSec || durationSec <= 0) {
-              const runsMatch = chunk.match(/"lengthText"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([^"]+)"/);
-              if (runsMatch) {
-                durationSec = parseAnyDurationToSeconds(runsMatch[1]);
-              }
-            }
-
-            if (!durationSec || durationSec <= 0) {
-              const labelMatch = chunk.match(/"label"\s*:\s*"([^"]+)"/);
-              if (labelMatch) {
-                durationSec = parseAnyDurationToSeconds(labelMatch[1]);
-              }
+              durationSec = parseDurationFromTitle(title) || 300;
             }
 
             scrapedVideos.push({
@@ -662,8 +561,9 @@ export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<an
             });
           });
 
-          const finalized = finalizeVideos(scrapedVideos);
-          if (finalized.length > 0) return finalized;
+          if (scrapedVideos.length > 0) {
+            return scrapedVideos;
+          }
         }
       }
     } catch {
@@ -693,17 +593,14 @@ export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<an
       if (response.ok) {
         const data = await response.json();
         if (data && Array.isArray(data.videos)) {
-          const list = data.videos.map((vid: any, i: number) => ({
+          return data.videos.map((vid: any, i: number) => ({
             videoId: vid.videoId,
             title: vid.title,
             channel: vid.author || data.author || 'YouTube Creator',
-            durationSeconds: parseAnyDurationToSeconds(vid.lengthSeconds ?? vid.duration ?? vid.length),
+            durationSeconds: vid.lengthSeconds || parseDurationFromTitle(vid.title || '') || 300,
             thumbnail: vid.videoThumbnails?.[0]?.url || `https://img.youtube.com/vi/${vid.videoId}/mqdefault.jpg`,
             index: i,
           }));
-
-          const finalized = finalizeVideos(list);
-          if (finalized.length > 0) return finalized;
         }
       }
     } catch {
@@ -717,23 +614,21 @@ export const fetchYoutubePlaylistVideos = async (playlistId: string): Promise<an
     if (response.ok) {
       const data = await response.json();
       if (data && data.items && Array.isArray(data.items)) {
-        const list = data.items.map((item: any, i: number) => {
+        return data.items.map((item: any, i: number) => {
           const videoIdMatch = item.link?.match(/v=([\w-]{11})/);
           const videoId = videoIdMatch ? videoIdMatch[1] : '';
           const title = item.title || `Video ${i + 1}`;
+          const durationSec = parseDurationFromTitle(title) || 300;
 
           return {
             videoId,
             title,
             channel: item.author || 'YouTube Creator',
-            durationSeconds: parseDurationFromTitle(title) || 0,
+            durationSeconds: durationSec,
             thumbnail: item.thumbnail || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
             index: i,
           };
-        });
-
-        const finalized = finalizeVideos(list);
-        if (finalized.length > 0) return finalized;
+        }).filter((v: any) => v.videoId);
       }
     }
   } catch {
