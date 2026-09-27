@@ -15,6 +15,7 @@ import {
   ExternalLink,
   User,
   GripVertical,
+  ListVideo,
 } from 'lucide-react';
 import { formatSecondsToTime } from '../../utils/timeUtils';
 import { getYoutubeThumbnail } from '../../utils/youtubeUtils';
@@ -216,9 +217,20 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
               <GripVertical className="w-3.5 h-3.5" />
             </div>
 
-            {/* Section badge (LEARN, PRACTICE, REVIEW) */}
-            <div className="bg-white/90 backdrop-blur-xs text-slate-800 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-xs">
-              {resource.section}
+            {/* Section badge & Video Count Badge */}
+            <div className="flex items-center gap-1.5">
+              <div className="bg-white/90 backdrop-blur-xs text-slate-800 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-xs">
+                {resource.section}
+              </div>
+              {resource.type === 'youtube' && (
+                <div className="bg-blue-600/90 backdrop-blur-xs text-white text-[10px] font-bold tracking-tight px-2 py-0.5 rounded shadow-xs flex items-center gap-1">
+                  <ListVideo className="w-3 h-3 text-blue-100" />
+                  <span>
+                    {resource.videoCount || (resource.playlistVideos?.length ? resource.playlistVideos.length : 1)}{' '}
+                    {(resource.videoCount || (resource.playlistVideos?.length ? resource.playlistVideos.length : 1)) === 1 ? 'Video' : 'Videos'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

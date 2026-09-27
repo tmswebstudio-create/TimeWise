@@ -18,6 +18,7 @@ import {
   Edit,
   Trash2,
   GripVertical,
+  ListVideo,
 } from 'lucide-react';
 import { formatSecondsToTime } from '../../utils/timeUtils';
 import { getYoutubeThumbnail } from '../../utils/youtubeUtils';
@@ -650,10 +651,20 @@ const ResourceItemRow: React.FC<ResourceItemRowProps> = ({
 
         {/* Resource Details */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
               {resource.type}
             </span>
+            {resource.type === 'youtube' && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="px-1.5 py-0.2 bg-blue-50 text-blue-700 text-[10px] font-bold rounded flex items-center gap-1">
+                  <ListVideo className="w-3 h-3 text-blue-600" />
+                  {(resource.videoCount || resource.playlistVideos?.length || 1)}{' '}
+                  {(resource.videoCount || resource.playlistVideos?.length || 1) === 1 ? 'video' : 'videos'}
+                </span>
+              </>
+            )}
             {resource.channel && (
               <>
                 <span className="text-slate-300">·</span>

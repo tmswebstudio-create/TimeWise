@@ -103,6 +103,7 @@ export interface Resource {
   description?: string;
   notes?: string;
   order?: number;
+  videoCount?: number;
 }
 
 export interface LearningSession {

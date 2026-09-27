@@ -229,8 +229,11 @@ export const ResourcePlayerModal: React.FC = () => {
                 <h2 className="text-base sm:text-lg font-heading font-semibold text-slate-900 leading-snug">
                   {activeVideo ? activeVideo.title : resource.title}
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {activeVideo ? `Video #${activeIndex + 1} of Playlist` : resource.channel ? `By ${resource.channel}` : 'YouTube Video'}
+                <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                  <span>{activeVideo ? `Video #${activeIndex + 1} of Playlist` : resource.channel ? `By ${resource.channel}` : 'YouTube Video'}</span>
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-full">
+                    {resource.videoCount || (resource.playlistVideos?.length ? resource.playlistVideos.length : 1)} {(resource.videoCount || (resource.playlistVideos?.length ? resource.playlistVideos.length : 1)) === 1 ? 'Video' : 'Videos'}
+                  </span>
                 </p>
               </div>
 

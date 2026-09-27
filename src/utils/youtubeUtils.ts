@@ -14,6 +14,7 @@ export interface YoutubeVideoMetadata {
   description?: string;
   isPlaylist?: boolean;
   playlistVideos?: any[];
+  videoCount?: number;
 }
 
 /**
@@ -450,6 +451,8 @@ export const fetchYoutubeMetadata = async (urlOrId: string): Promise<YoutubeVide
 
     const durationMinutes = Math.max(1, Math.round(durationSeconds / 60));
 
+    const videoCount = playlistVideos?.length || 1;
+
     return {
       videoId: playlistVideos[0]?.videoId || '',
       playlistId,
@@ -461,6 +464,7 @@ export const fetchYoutubeMetadata = async (urlOrId: string): Promise<YoutubeVide
       thumbnailFallback: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=320&q=80',
       isPlaylist: true,
       playlistVideos,
+      videoCount,
     };
   }
 
@@ -542,6 +546,7 @@ export const fetchYoutubeMetadata = async (urlOrId: string): Promise<YoutubeVide
     durationMinutes,
     thumbnail: primaryThumb,
     thumbnailFallback: hqThumbnail,
+    videoCount: 1,
   };
 };
 

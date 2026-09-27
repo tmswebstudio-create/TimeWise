@@ -288,6 +288,10 @@ export const ResourceFormModal: React.FC = () => {
         ? exactDurationSeconds
         : durationMinutes * 60;
 
+    const calculatedVideoCount = type === 'youtube'
+      ? (playlistVideos.length > 0 ? playlistVideos.length : 1)
+      : undefined;
+
     if (resourceToEdit) {
       updateResource(resourceToEdit.id, {
         goalId,
@@ -305,6 +309,7 @@ export const ResourceFormModal: React.FC = () => {
         playlistVideos: playlistVideos.length > 0 ? playlistVideos : resourceToEdit.playlistVideos,
         currentPlaylistIndex: resourceToEdit.currentPlaylistIndex ?? 0,
         description: description.trim(),
+        videoCount: calculatedVideoCount ?? resourceToEdit.videoCount,
       });
     } else {
       addResource({
@@ -326,6 +331,7 @@ export const ResourceFormModal: React.FC = () => {
         currentTime: 0,
         description: description.trim(),
         notes: '',
+        videoCount: calculatedVideoCount,
       });
     }
 
@@ -482,8 +488,15 @@ export const ResourceFormModal: React.FC = () => {
                   <p className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">
                     {title || 'YouTube Video'}
                   </p>
-                  <p className="text-[11px] text-slate-500 truncate mt-1">
-                    <span className="font-medium text-slate-700">{channel || 'Creator'}</span> · {exactDurationSeconds ? formatSecondsToTime(exactDurationSeconds) : `${durationMinutes} min`}
+                  <p className="text-[11px] text-slate-500 truncate mt-1 flex items-center gap-1.5 flex-wrap">
+                    <span className="font-medium text-slate-700">{channel || 'Creator'}</span>
+                    <span>·</span>
+                    <span>{exactDurationSeconds ? formatSecondsToTime(exactDurationSeconds) : `${durationMinutes} min`}</span>
+                    {type === 'youtube' && (
+                      <span className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-800 rounded font-bold">
+                        {playlistVideos.length > 0 ? `${playlistVideos.length} Videos` : '1 Video'}
+                      </span>
+                    )}
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
                     <span>✓ Thumbnail will be displayed on the card</span>
