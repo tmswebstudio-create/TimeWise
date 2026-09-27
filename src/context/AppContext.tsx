@@ -370,6 +370,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           fetchedTasks.push(docSnap.data() as Task);
         });
+        fetchedTasks.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         setTasks(fetchedTasks);
         setIsCloudSyncing(false);
       },
@@ -385,6 +386,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           fetchedGoals.push(docSnap.data() as LearningGoal);
         });
+        fetchedGoals.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         setGoals(fetchedGoals);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, `users/${userId}/goals`)
@@ -415,6 +417,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           fetchedRes.push(docSnap.data() as Resource);
         });
+        fetchedRes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         setResources(fetchedRes);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, `users/${userId}/resources`)
@@ -725,7 +728,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = [...prev];
       const [moved] = updated.splice(sourceIndex, 1);
       updated.splice(targetIndex, 0, moved);
-      return updated;
+
+      const reordered = updated.map((item, idx) => ({
+        ...item,
+        order: idx + 1,
+      }));
+
+      if (user) {
+        reordered.forEach((taskItem) => {
+          const docRef = doc(db, 'users', user.uid, 'tasks', taskItem.id);
+          updateDoc(docRef, { order: taskItem.order }).catch((err) =>
+            handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/tasks/${taskItem.id}`)
+          );
+        });
+      }
+
+      return reordered;
     });
   };
 
@@ -844,7 +862,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = [...prev];
       const [moved] = updated.splice(sourceIndex, 1);
       updated.splice(targetIndex, 0, moved);
-      return updated;
+
+      const reordered = updated.map((item, idx) => ({
+        ...item,
+        order: idx + 1,
+      }));
+
+      if (user) {
+        reordered.forEach((goal) => {
+          const docRef = doc(db, 'users', user.uid, 'goals', goal.id);
+          updateDoc(docRef, { order: goal.order }).catch((err) =>
+            handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/goals/${goal.id}`)
+          );
+        });
+      }
+
+      return reordered;
     });
   };
 
@@ -926,6 +959,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const createdRes: Resource = {
       ...newResData,
       id,
+      order: newResData.order ?? (resources.length + 1),
     };
 
     setResources((prev) => [...prev, createdRes]);
@@ -1094,7 +1128,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = [...prev];
       const [moved] = updated.splice(sourceIndex, 1);
       updated.splice(targetIndex, 0, moved);
-      return updated;
+
+      const reordered = updated.map((item, idx) => ({
+        ...item,
+        order: idx + 1,
+      }));
+
+      if (user) {
+        reordered.forEach((res) => {
+          const docRef = doc(db, 'users', user.uid, 'resources', res.id);
+          updateDoc(docRef, { order: res.order, updatedAt: new Date().toISOString() }).catch((err) =>
+            handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/resources/${res.id}`)
+          );
+        });
+      }
+
+      return reordered;
     });
   };
 
@@ -1342,17 +1391,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Strictly maintain the moved card's own category and subcategory
       updated.splice(targetIndex, 0, moved);
 
+      const reordered = updated.map((item, idx) => ({
+        ...item,
+        order: idx + 1,
+      }));
+
       if (user) {
         try {
-          localStorage.setItem(`timewise_bookmarks_${user.uid}`, JSON.stringify(updated));
+          localStorage.setItem(`timewise_bookmarks_${user.uid}`, JSON.stringify(reordered));
         } catch (e) {}
+        reordered.forEach((bm) => {
+          const docRef = doc(db, 'users', user.uid, 'bookmarks', bm.id);
+          updateDoc(docRef, { order: bm.order, updatedAt: new Date().toISOString() }).catch(() => {});
+        });
       } else {
         try {
-          localStorage.setItem('timewise_bookmarks', JSON.stringify(updated));
+          localStorage.setItem('timewise_bookmarks', JSON.stringify(reordered));
         } catch (e) {}
       }
 
-      return updated;
+      return reordered;
     });
   };
 

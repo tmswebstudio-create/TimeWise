@@ -35,6 +35,7 @@ export interface Task {
   notes: string;
   createdAt: string;
   completedAt?: string | null;
+  order?: number;
 }
 
 export interface LearningGoal {
@@ -47,6 +48,7 @@ export interface LearningGoal {
   totalLearningTimeMinutes: number;
   lastStudiedAt: string;
   color?: string;
+  order?: number;
 }
 
 export type ModuleStatus = 'completed' | 'in_progress' | 'not_started' | 'locked';
@@ -100,6 +102,7 @@ export interface Resource {
   lastWatchedAt?: string;
   description?: string;
   notes?: string;
+  order?: number;
 }
 
 export interface LearningSession {
