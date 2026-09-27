@@ -29,6 +29,23 @@ export function formatDurationMinutes(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
+export function getTaskDurationMinutes(startTime: string, endTime: string): number {
+  if (!startTime || !endTime) return 0;
+  const [startH, startM] = startTime.split(':').map(Number);
+  const [endH, endM] = endTime.split(':').map(Number);
+  if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return 0;
+  let diff = (endH * 60 + endM) - (startH * 60 + startM);
+  if (diff < 0) {
+    diff += 24 * 60;
+  }
+  return diff;
+}
+
+export function formatTaskScheduledDuration(startTime: string, endTime: string): string {
+  const mins = getTaskDurationMinutes(startTime, endTime);
+  return formatDurationMinutes(mins);
+}
+
 export function formatSecondsToTime(seconds: number): string {
   const sec = Math.max(0, Math.floor(seconds));
   const h = Math.floor(sec / 3600);

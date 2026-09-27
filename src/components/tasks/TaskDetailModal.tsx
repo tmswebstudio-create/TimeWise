@@ -19,6 +19,7 @@ import {
 import {
   calculateTaskTiming,
   formatTime12h,
+  formatTaskScheduledDuration,
 } from '../../utils/timeUtils';
 import { LinkType } from '../../types';
 
@@ -281,10 +282,13 @@ export const TaskDetailModal: React.FC = () => {
           {/* Time & Countdown Box */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
             <div className="flex flex-wrap items-center justify-between gap-3 text-xs mb-2">
-              <div className="flex items-center gap-2 text-slate-700">
+              <div className="flex flex-wrap items-center gap-2 text-slate-700">
                 <Clock className="w-4 h-4 text-blue-600" />
                 <span className="font-tabular font-medium">
                   {formatTime12h(task.startTime)} → {formatTime12h(task.endTime)}
+                </span>
+                <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60 rounded">
+                  total duration - {formatTaskScheduledDuration(task.startTime, task.endTime)}
                 </span>
                 <span className="text-slate-400">({task.date})</span>
               </div>

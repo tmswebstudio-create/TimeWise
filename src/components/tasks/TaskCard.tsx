@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import {
   calculateTaskTiming,
   formatTime12h,
+  formatTaskScheduledDuration,
 } from '../../utils/timeUtils';
 import {
   Check,
@@ -249,12 +250,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
           {/* Time & Live Countdown Section */}
           <div className="bg-slate-50/70 border border-slate-100 rounded-lg p-2.5 mb-3">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <div className="flex items-center gap-1.5 text-slate-600 font-tabular text-[11px]">
+            <div className="flex flex-wrap items-center justify-between gap-y-1 text-xs mb-1.5">
+              <div className="flex items-center gap-1.5 text-slate-600 font-tabular text-[11px] flex-wrap">
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
                 <span>{formatTime12h(task.startTime)}</span>
                 <span className="text-slate-300">→</span>
                 <span>{formatTime12h(task.endTime)}</span>
+                <span className="ml-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60 rounded">
+                  total duration - {formatTaskScheduledDuration(task.startTime, task.endTime)}
+                </span>
               </div>
 
               {/* Countdown Label */}

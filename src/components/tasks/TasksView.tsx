@@ -41,6 +41,7 @@ import {
   formatShortDate,
   getRelativeDayLabel,
   formatTime12h,
+  formatTaskScheduledDuration,
 } from '../../utils/timeUtils';
 import { Task } from '../../types';
 
@@ -252,7 +253,7 @@ export const TasksView: React.FC = () => {
                             {formatFriendlyDate(t.date)}
                           </span>
                           <span>·</span>
-                          <span>{formatTime12h(t.startTime)} – {formatTime12h(t.endTime)}</span>
+                          <span>{formatTime12h(t.startTime)} – {formatTime12h(t.endTime)} ({formatTaskScheduledDuration(t.startTime, t.endTime)})</span>
                           {t.category && (
                             <>
                               <span>·</span>

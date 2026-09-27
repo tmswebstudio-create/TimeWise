@@ -13,7 +13,7 @@ import {
   Check,
 } from 'lucide-react';
 import { Task, TaskPriority, TaskCategory, Subtask, TaskLink, LinkType } from '../../types';
-import { getTodayDateString } from '../../utils/timeUtils';
+import { getTodayDateString, formatTaskScheduledDuration } from '../../utils/timeUtils';
 
 export const TaskFormModal: React.FC = () => {
   const {
@@ -309,10 +309,17 @@ export const TaskFormModal: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>End Time</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-700 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>End Time</span>
+                </label>
+                {startTime && endTime && (
+                  <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60">
+                    total duration - {formatTaskScheduledDuration(startTime, endTime)}
+                  </span>
+                )}
+              </div>
               <input
                 type="time"
                 required
