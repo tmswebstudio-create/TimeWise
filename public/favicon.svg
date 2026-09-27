@@ -1,91 +1,52 @@
-<svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <!-- Soft Squircle Container Background (Optional / Clean) -->
-    <radialGradient id="tw-container-bg" cx="50%" cy="30%" r="70%">
-      <stop offset="0%" stopColor="#FFFFFF" />
-      <stop offset="100%" stopColor="#F0F6FF" />
-    </radialGradient>
-
-    <!-- Outer Ring Smooth Blue Gradient (Modern Tailwind Blue, non-oversaturated) -->
-    <linearGradient id="tw-ring-grad" x1="80" y1="420" x2="430" y2="80" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#1E40AF" />
-      <stop offset="35%" stopColor="#2563EB" />
-      <stop offset="70%" stopColor="#3B82F6" />
-      <stop offset="100%" stopColor="#60A5FA" />
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#1e1b4b" />
+      <stop offset="100%" stop-color="#1e3a8a" />
     </linearGradient>
 
-    <!-- Clock Inner Face Background -->
-    <radialGradient id="tw-clock-bg" cx="50%" cy="40%" r="55%">
-      <stop offset="0%" stopColor="#FFFFFF" />
-      <stop offset="85%" stopColor="#F8FAFC" />
-      <stop offset="100%" stopColor="#EDF5FF" />
-    </radialGradient>
-
-    <!-- Upper Wave Gradient (Balanced Royal Blue) -->
-    <linearGradient id="tw-wave-top" x1="100" y1="360" x2="420" y2="300" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#1D4ED8" />
-      <stop offset="60%" stopColor="#2563EB" />
-      <stop offset="100%" stopColor="#3B82F6" />
+    <!-- Vibrant Ring Gradient -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#4f46e5" />
     </linearGradient>
 
-    <!-- Lower Base Wave / Leaf (Soft Cyan / Azure) -->
-    <linearGradient id="tw-wave-bot" x1="100" y1="440" x2="430" y2="340" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#2563EB" />
-      <stop offset="45%" stopColor="#0284C7" />
-      <stop offset="80%" stopColor="#38BDF8" />
-      <stop offset="100%" stopColor="#7DD3FC" />
+    <!-- Hands Accent Gradient -->
+    <linearGradient id="handGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#3b82f6" />
     </linearGradient>
+
+    <!-- Glow Effect -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
   </defs>
 
-  <!-- Full-View Container Squircle with Soft Rounded Edge for Standalone Icons -->
-  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#tw-container-bg)" />
+  <!-- Dark Premium Container -->
+  <rect x="32" y="32" width="448" height="448" rx="108" fill="url(#bgGrad)" />
+  <rect x="32" y="32" width="448" height="448" rx="108" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="6" />
 
-  <!-- Clock Inner Face Background -->
-  <circle cx="256" cy="240" r="180" fill="url(#tw-clock-bg)" />
+  <!-- Outer Ring (Clock Body) -->
+  <circle cx="256" cy="256" r="144" fill="none" stroke="url(#ringGrad)" stroke-width="32" stroke-linecap="round" />
 
-  <!-- Outer Main Clock Ring -->
-  <path
-    d="M 136 358 A 160 160 0 1 1 376 358"
-    stroke="url(#tw-ring-grad)"
-    strokeWidth="38"
-    strokeLinecap="round"
-    fill="none"
-  />
+  <!-- Active Progress Arc (12 o'clock to 3 o'clock) -->
+  <path d="M 256 112 A 144 144 0 0 1 400 256" fill="none" stroke="#38bdf8" stroke-width="36" stroke-linecap="round" filter="url(#glow)" />
 
-  <!-- Clock Hour Ticks -->
-  <rect x="245" y="112" width="22" height="30" rx="11" fill="#2563EB" />
-  <rect x="146" y="229" width="30" height="22" rx="11" fill="#2563EB" />
-  <rect x="336" y="229" width="30" height="22" rx="11" fill="#2563EB" />
+  <!-- Center Pivot -->
+  <circle cx="256" cy="256" r="22" fill="#ffffff" />
 
-  <!-- Center Pivot Hub -->
-  <circle cx="256" cy="240" r="24" fill="#2563EB" />
+  <!-- Hour Hand -->
+  <line x1="256" y1="256" x2="184" y2="184" stroke="#ffffff" stroke-width="26" stroke-linecap="round" />
 
-  <!-- Minute Hand (Vertical to 12) -->
-  <rect x="245" y="146" width="22" height="88" rx="11" fill="#2563EB" />
+  <!-- Minute Hand -->
+  <line x1="256" y1="256" x2="256" y2="140" stroke="url(#handGrad)" stroke-width="26" stroke-linecap="round" />
 
-  <!-- Hour Hand (Diagonal to ~4 o'clock) -->
-  <g transform="rotate(128 256 240)">
-    <rect x="246" y="160" width="20" height="70" rx="10" fill="#2563EB" />
-  </g>
-
-  <!-- Upper Wave Swoosh -->
-  <path
-    d="M 112 315 C 145 328, 190 275, 272 270 C 342 265, 392 295, 418 338 C 380 306, 332 308, 284 320 C 212 338, 154 342, 112 315 Z"
-    fill="url(#tw-wave-top)"
-  />
-
-  <!-- Lower Base Wave / Leaf Swoosh -->
-  <path
-    d="M 112 315 C 162 372, 242 312, 304 316 C 368 320, 402 338, 424 358 C 386 405, 325 424, 256 424 C 188 424, 134 386, 112 315 Z"
-    fill="url(#tw-wave-bot)"
-  />
-
-  <!-- White Separator Line between Waves -->
-  <path
-    d="M 140 366 C 190 354, 270 308, 344 313 C 388 316, 410 334, 424 358"
-    stroke="#FFFFFF"
-    strokeWidth="5"
-    strokeLinecap="round"
-    fill="none"
-  />
+  <!-- Stylized Success Sparkle / Check Badge at top right -->
+  <circle cx="370" cy="142" r="42" fill="#0f172a" stroke="#2563eb" stroke-width="6" />
+  <path d="M 352 142 L 366 156 L 390 128" fill="none" stroke="#38bdf8" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
 </svg>
