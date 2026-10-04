@@ -141,6 +141,26 @@ export interface WebsiteBookmark {
   updatedAt?: string;
 }
 
+export interface Habit {
+  id: string;
+  userId?: string;
+  title: string;
+  description?: string;
+  category: string;
+  color: string; // Preset name or hex code
+  customColorHex?: string; // Optional explicit hex code e.g. '#6366F1'
+  icon?: string; // Preset icon identifier or 'custom'
+  customIconUrl?: string; // Base64 data URL or external URL for uploaded custom icon
+  frequency: 'daily' | 'weekdays' | 'custom';
+  startDate?: string; // ISO date 'YYYY-MM-DD' when the habit tracking starts
+  completedDates: string[]; // array of ISO 'YYYY-MM-DD'
+  targetDaysPerWeek?: number;
+  order?: number;
+  archived?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export type ActiveView = 
   | 'tasks'
   | 'goals'
@@ -148,4 +168,5 @@ export type ActiveView =
   | 'module-detail'
   | 'progress'
   | 'bookmarks'
+  | 'habits'
   | 'settings';

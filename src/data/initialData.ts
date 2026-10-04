@@ -6,8 +6,9 @@ import {
   LearningSession,
   UserSettings,
   WebsiteBookmark,
+  Habit,
 } from '../types';
-import { getTodayDateString } from '../utils/timeUtils';
+import { getTodayDateString, addDays } from '../utils/timeUtils';
 
 // Helper to format hours & minutes to "HH:mm"
 function formatHHMM(date: Date): string {
@@ -868,4 +869,75 @@ export const initialBookmarks: WebsiteBookmark[] = [
     createdAt: '2026-09-21T09:35:00.000Z',
   },
 ];
+
+export function generateInitialHabits(): Habit[] {
+  const today = getTodayDateString();
+  const d_minus_1 = addDays(today, -1);
+  const d_minus_2 = addDays(today, -2);
+  const d_minus_3 = addDays(today, -3);
+  const d_minus_4 = addDays(today, -4);
+  const d_minus_5 = addDays(today, -5);
+  const d_minus_6 = addDays(today, -6);
+  const d_minus_7 = addDays(today, -7);
+
+  return [
+    {
+      id: 'habit-programming-practice',
+      title: 'Programming Practice',
+      description: 'Daily algorithmic problem solving, code building, and real-world implementation.',
+      category: 'Coding',
+      color: 'indigo',
+      icon: 'Code',
+      frequency: 'daily',
+      startDate: addDays(today, -14),
+      targetDaysPerWeek: 7,
+      completedDates: [today, d_minus_1, d_minus_2, d_minus_3, d_minus_4],
+      order: 1,
+      createdAt: '2026-09-20T08:00:00.000Z',
+    },
+    {
+      id: 'habit-system-design',
+      title: 'System Design & Architecture',
+      description: 'Study distributed architectures, caching, scalability, and database patterns.',
+      category: 'Architecture',
+      color: 'blue',
+      icon: 'Brain',
+      frequency: 'daily',
+      startDate: addDays(today, -20),
+      targetDaysPerWeek: 5,
+      completedDates: [d_minus_1, d_minus_2, d_minus_3, d_minus_4, d_minus_5, d_minus_6],
+      order: 2,
+      createdAt: '2026-09-18T08:00:00.000Z',
+    },
+    {
+      id: 'habit-tech-reading',
+      title: 'Tech Documentation & Reading',
+      description: 'Read 20-30 minutes of official docs, engineering blogs, or technical whitepapers.',
+      category: 'Learning',
+      color: 'emerald',
+      icon: 'BookOpen',
+      frequency: 'daily',
+      startDate: addDays(today, -10),
+      targetDaysPerWeek: 7,
+      completedDates: [today, d_minus_1, d_minus_2],
+      order: 3,
+      createdAt: '2026-09-22T08:00:00.000Z',
+    },
+    {
+      id: 'habit-workout',
+      title: 'Fitness & Physical Activity',
+      description: 'Gym workout, running, stretching, or high-energy physical conditioning.',
+      category: 'Health',
+      color: 'rose',
+      icon: 'Dumbbell',
+      frequency: 'daily',
+      startDate: addDays(today, -25),
+      targetDaysPerWeek: 5,
+      completedDates: [d_minus_1, d_minus_2, d_minus_3, d_minus_5, d_minus_6],
+      order: 4,
+      createdAt: '2026-09-15T08:00:00.000Z',
+    },
+  ];
+}
+
 

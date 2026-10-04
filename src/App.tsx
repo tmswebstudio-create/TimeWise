@@ -22,6 +22,8 @@ import { ResourceFormModal } from './components/resources/ResourceFormModal';
 import { ProgressView } from './components/progress/ProgressView';
 import { BookmarksView } from './components/bookmarks/BookmarksView';
 import { BookmarkFormModal } from './components/bookmarks/BookmarkFormModal';
+import { HabitsView } from './components/habits/HabitsView';
+import { HabitFormModal } from './components/habits/HabitFormModal';
 import { SettingsView } from './components/settings/SettingsView';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { AuthModal } from './components/auth/AuthModal';
@@ -69,6 +71,7 @@ const AppContent: React.FC = () => {
 
         <main className={`flex-1 w-full mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-200 transition-all ${isRightPanelOpen ? 'max-w-5xl' : 'max-w-6xl'}`}>
           {activeView === 'tasks' && <TasksView />}
+          {activeView === 'habits' && <HabitsView />}
           {activeView === 'goals' && <GoalsView />}
           {activeView === 'goal-detail' && <GoalDetailView />}
           {activeView === 'module-detail' && <ModuleDetailView />}
@@ -92,6 +95,7 @@ const AppContent: React.FC = () => {
       <ResourcePlayerModal />
       <ResourceFormModal />
       <BookmarkFormModal />
+      <HabitFormModal />
       <GlobalSearchModal />
       <AuthModal />
       <Toast />

@@ -35,6 +35,10 @@ export function parseCurrentRoute(): RouteState {
     return { view: 'bookmarks', goalId: null, moduleId: null };
   }
 
+  if (path === '/habits' || path === '/streak' || path === '/streaks') {
+    return { view: 'habits', goalId: null, moduleId: null };
+  }
+
   if (path === '/progress' || path === '/resources' || path === '/learning') {
     return { view: 'progress', goalId: null, moduleId: null };
   }
@@ -102,6 +106,8 @@ export function formatRoutePath(
       return goalId ? `/goals/${encodeURIComponent(goalId)}` : '/goals';
     case 'bookmarks':
       return '/bookmarks';
+    case 'habits':
+      return '/habits';
     case 'progress':
       return '/progress';
     case 'settings':

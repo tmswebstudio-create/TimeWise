@@ -4,6 +4,8 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signInAnonymously,
   signOut,
   updateProfile,
@@ -15,8 +17,10 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isGuest: boolean;
+  isFirebaseUser: boolean;
   authError: string | null;
   clearAuthError: () => void;
+  signInWithGoogle: () => Promise<void>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signInAsGuest: () => Promise<void>;
@@ -77,6 +81,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const closeAuthModal = () => {
     setIsAuthModalOpen(false);
     setAuthError(null);
+  };
+
+  // Google Sign In
+  const signInWithGoogle = async () => {
+    try {
+      setAuthError(null);
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const loggedUser = userCredential.user;
+
+      // Check if user doc exists in Firestore, if not create basic profile
+      const userDocRef = doc(db, 'users', loggedUser.uid);
+      const snap = await getDoc(userDocRef);
+      if (!snap.exists()) {
+        await setDoc(userDocRef, {
+          uid: loggedUser.uid,
+          email: loggedUser.email || '',
+          displayName: loggedUser.displayName || 'Learner',
+          isGuest: false,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Dhaka',
+          dailyTargetMinutes: 180,
+          timeFormat: '12h',
+          soundEnabled: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      setIsAuthModalOpen(false);
+    } catch (error: any) {
+      console.error('Google sign in error:', error);
+      if (error.code !== 'auth/popup-closed-by-user') {
+        setAuthError(error.message || 'Failed to sign in with Google.');
+      }
+      throw error;
+    }
   };
 
   // 1. Sign Up with Email, Password & Display Name
@@ -227,14 +267,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const isFirebaseUser = Boolean(user && auth.currentUser && auth.currentUser.uid === user.uid);
+
   return (
     <AuthContext.Provider
       value={{
         user,
         loading,
         isGuest,
+        isFirebaseUser,
         authError,
         clearAuthError,
+        signInWithGoogle,
         signUpWithEmail,
         signInWithEmail,
         signInAsGuest,

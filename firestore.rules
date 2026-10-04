@@ -81,6 +81,15 @@ service cloud.firestore {
         allow update: if isOwner(userId);
         allow delete: if isOwner(userId);
       }
+
+      // Habits Subcollection
+      match /habits/{habitId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(habitId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
     }
   }
 }

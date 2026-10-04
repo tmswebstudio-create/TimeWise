@@ -304,6 +304,60 @@
         }
       },
       "required": ["id", "userId", "durationMinutes", "timestamp"]
+    },
+    "Habit": {
+      "title": "Habit",
+      "description": "Daily or custom habit with streak tracking and completed date circles",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "color": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "frequency": {
+          "type": "string",
+          "enum": ["daily", "weekdays", "custom"]
+        },
+        "completedDates": {
+          "type": "array"
+        },
+        "targetDaysPerWeek": {
+          "type": "number"
+        },
+        "order": {
+          "type": "number"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "userId", "title", "frequency", "completedDates"]
     }
   },
   "firestore": {
@@ -330,6 +384,14 @@
     "/users/{userId}/sessions/{sessionId}": {
       "schema": "LearningSession",
       "description": "Collection of study sessions logged by the user"
+    },
+    "/users/{userId}/bookmarks/{bookmarkId}": {
+      "schema": "WebsiteBookmark",
+      "description": "Collection of website bookmarks owned by the user"
+    },
+    "/users/{userId}/habits/{habitId}": {
+      "schema": "Habit",
+      "description": "Collection of habits tracked by the user"
     }
   }
 }

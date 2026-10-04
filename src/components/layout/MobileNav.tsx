@@ -1,17 +1,19 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { CheckSquare, Compass, BarChart3, Bookmark, Settings } from 'lucide-react';
+import { CheckSquare, Compass, BarChart3, Bookmark, Settings, Flame } from 'lucide-react';
 import { ActiveView } from '../../types';
 import { getTodayDateString } from '../../utils/timeUtils';
 
 export const MobileNav: React.FC = () => {
-  const { activeView, setActiveView, tasks } = useApp();
+  const { activeView, setActiveView, tasks, habits } = useApp();
 
   const today = getTodayDateString();
   const remainingToday = tasks.filter((t) => t.date === today && t.status !== 'completed').length;
+  const uncompletedHabitsToday = habits.filter((h) => !(h.completedDates || []).includes(today)).length;
 
   const items: { id: ActiveView; label: string; icon: typeof CheckSquare; badge?: number }[] = [
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: remainingToday > 0 ? remainingToday : undefined },
+    { id: 'habits', label: 'Habits', icon: Flame, badge: uncompletedHabitsToday > 0 ? uncompletedHabitsToday : undefined },
     { id: 'goals', label: 'Goals', icon: Compass },
     { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
     { id: 'progress', label: 'Progress', icon: BarChart3 },

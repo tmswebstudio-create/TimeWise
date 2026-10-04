@@ -11,6 +11,7 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
+  Flame,
 } from 'lucide-react';
 import { ActiveView } from '../../types';
 import { getTodayDateString } from '../../utils/timeUtils';
@@ -22,6 +23,7 @@ export const Sidebar: React.FC = () => {
     setActiveView,
     tasks,
     bookmarks,
+    habits,
     sessions,
     settings,
     openTaskForm,
@@ -32,6 +34,7 @@ export const Sidebar: React.FC = () => {
   const today = getTodayDateString();
   const todayTasks = tasks.filter((t) => t.date === today);
   const remainingToday = todayTasks.filter((t) => t.status !== 'completed').length;
+  const uncompletedHabitsToday = habits.filter((h) => !(h.completedDates || []).includes(today)).length;
 
   // Calculate today focus minutes from today sessions
   const todaySessions = sessions.filter(
@@ -50,6 +53,7 @@ export const Sidebar: React.FC = () => {
 
   const navItems: { id: ActiveView; label: string; icon: typeof CheckSquare; badge?: number }[] = [
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: remainingToday > 0 ? remainingToday : undefined },
+    { id: 'habits', label: 'Habits & Streaks', icon: Flame, badge: uncompletedHabitsToday > 0 ? uncompletedHabitsToday : undefined },
     { id: 'goals', label: 'Learning Goals', icon: Compass },
     { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark, badge: bookmarks.length > 0 ? bookmarks.length : undefined },
     { id: 'progress', label: 'Progress', icon: BarChart3 },
