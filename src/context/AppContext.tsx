@@ -12,6 +12,7 @@ import {
   ResourceSection,
   WebsiteBookmark,
   Habit,
+  HabitTimeLog,
 } from '../types';
 import {
   generateInitialTasks,
@@ -23,7 +24,7 @@ import {
   initialBookmarks,
   generateInitialHabits,
 } from '../data/initialData';
-import { getTodayDateString, addDays } from '../utils/timeUtils';
+import { getTodayDateString, addDays, getCurrentTimeString24h, formatDurationHuman } from '../utils/timeUtils';
 import { parseCurrentRoute, formatRoutePath } from '../utils/routeUtils';
 import { useAuth } from './AuthContext';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -170,6 +171,20 @@ interface AppContextType {
   deleteHabit: (id: string) => void;
   toggleHabitDate: (habitId: string, dateStr: string) => void;
   reorderHabits: (sourceId: string, targetId: string) => void;
+
+  // Habit Time Tracking (Dynamic live timer & manual logs by date)
+  addHabitTimeLog: (habitId: string, log: Omit<HabitTimeLog, 'id' | 'createdAt'>, markCompleted?: boolean) => void;
+  deleteHabitTimeLog: (habitId: string, logId: string) => void;
+  updateHabitTimeLog: (habitId: string, logId: string, updates: Partial<HabitTimeLog>) => void;
+  activeHabitTimer: { habitId: string; startTimestamp: number; startTimeStr: string } | null;
+  startHabitTimer: (habitId: string) => void;
+  stopHabitTimer: (habitId: string, notes?: string, markCompleted?: boolean) => HabitTimeLog | null;
+  cancelHabitTimer: (habitId: string) => void;
+  isTimeTrackerOpen: boolean;
+  activeTimeTrackingHabitId: string | null;
+  timeTrackerInitialDate: string | null;
+  openTimeTracker: (habitId: string, initialDate?: string) => void;
+  closeTimeTracker: () => void;
 
   // Settings & reset
   updateSettings: (newSettings: Partial<UserSettings>) => void;
@@ -394,6 +409,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const closeHabitForm = () => {
     setHabitToEdit(null);
     setIsHabitFormOpen(false);
+  };
+
+  // Habit Time Tracker Modal and Dynamic Timer state
+  const [isTimeTrackerOpen, setIsTimeTrackerOpen] = useState<boolean>(false);
+  const [activeTimeTrackingHabitId, setActiveTimeTrackingHabitId] = useState<string | null>(null);
+  const [timeTrackerInitialDate, setTimeTrackerInitialDate] = useState<string | null>(null);
+
+  const [activeHabitTimer, setActiveHabitTimer] = useState<{
+    habitId: string;
+    startTimestamp: number;
+    startTimeStr: string;
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem('timewise_active_habit_timer');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  });
+
+  const openTimeTracker = (habitId: string, initialDate?: string) => {
+    setActiveTimeTrackingHabitId(habitId);
+    setTimeTrackerInitialDate(initialDate || getTodayDateString());
+    setIsTimeTrackerOpen(true);
+  };
+
+  const closeTimeTracker = () => {
+    setIsTimeTrackerOpen(false);
+    setActiveTimeTrackingHabitId(null);
+    setTimeTrackerInitialDate(null);
   };
 
   // Panels & Sidebars - default left and right panels stay collapsed
@@ -2065,6 +2109,250 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // ----------------------------------------------------
+  // HABIT TIME TRACKING (MANUAL LOGS & DYNAMIC LIVE TIMER)
+  // ----------------------------------------------------
+  const addHabitTimeLog = (
+    habitId: string,
+    logData: Omit<HabitTimeLog, 'id' | 'createdAt'>,
+    markCompleted: boolean = true
+  ) => {
+    const id = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newLog: HabitTimeLog = {
+      ...logData,
+      id,
+      habitId,
+      createdAt: new Date().toISOString(),
+    };
+
+    let updatedHabitForSync: Habit | null = null;
+
+    setHabits((prev) => {
+      const idx = prev.findIndex((h) => h.id === habitId);
+      if (idx === -1) return prev;
+
+      const currentHabit = prev[idx];
+      const existingLogs = currentHabit.timeLogs || [];
+      const updatedLogs = [newLog, ...existingLogs];
+
+      let updatedCompletedDates = currentHabit.completedDates || [];
+      if (markCompleted && !updatedCompletedDates.includes(logData.date)) {
+        updatedCompletedDates = [...updatedCompletedDates, logData.date];
+      }
+
+      const updatedHabit: Habit = {
+        ...currentHabit,
+        timeLogs: updatedLogs,
+        completedDates: updatedCompletedDates,
+        updatedAt: new Date().toISOString(),
+      };
+
+      updatedHabitForSync = updatedHabit;
+
+      const nextList = [...prev];
+      nextList[idx] = updatedHabit;
+
+      if (user) {
+        try {
+          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(nextList));
+        } catch (e) {}
+      } else {
+        try {
+          localStorage.setItem('timewise_habits', JSON.stringify(nextList));
+        } catch (e) {}
+      }
+
+      return nextList;
+    });
+
+    if (canSyncToFirestore && user && updatedHabitForSync) {
+      const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
+      setDoc(
+        habitDocRef,
+        sanitizeForFirestore({
+          ...(updatedHabitForSync as Habit),
+          userId: user.uid,
+        }),
+        { merge: true }
+      ).catch((err) => {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
+      });
+    }
+
+    const durationText = formatDurationHuman(logData.durationMinutes);
+    showToast(`Logged ${durationText} on ${logData.date}`);
+  };
+
+  const deleteHabitTimeLog = (habitId: string, logId: string) => {
+    let updatedHabitForSync: Habit | null = null;
+
+    setHabits((prev) => {
+      const idx = prev.findIndex((h) => h.id === habitId);
+      if (idx === -1) return prev;
+
+      const currentHabit = prev[idx];
+      const updatedLogs = (currentHabit.timeLogs || []).filter((l) => l.id !== logId);
+
+      const updatedHabit: Habit = {
+        ...currentHabit,
+        timeLogs: updatedLogs,
+        updatedAt: new Date().toISOString(),
+      };
+
+      updatedHabitForSync = updatedHabit;
+
+      const nextList = [...prev];
+      nextList[idx] = updatedHabit;
+
+      if (user) {
+        try {
+          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(nextList));
+        } catch (e) {}
+      } else {
+        try {
+          localStorage.setItem('timewise_habits', JSON.stringify(nextList));
+        } catch (e) {}
+      }
+
+      return nextList;
+    });
+
+    if (canSyncToFirestore && user && updatedHabitForSync) {
+      const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
+      setDoc(
+        habitDocRef,
+        sanitizeForFirestore({
+          ...(updatedHabitForSync as Habit),
+          userId: user.uid,
+        }),
+        { merge: true }
+      ).catch((err) => {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
+      });
+    }
+
+    showToast('Time log removed');
+  };
+
+  const updateHabitTimeLog = (habitId: string, logId: string, updates: Partial<HabitTimeLog>) => {
+    let updatedHabitForSync: Habit | null = null;
+
+    setHabits((prev) => {
+      const idx = prev.findIndex((h) => h.id === habitId);
+      if (idx === -1) return prev;
+
+      const currentHabit = prev[idx];
+      const updatedLogs = (currentHabit.timeLogs || []).map((l) => {
+        if (l.id === logId) {
+          return { ...l, ...updates };
+        }
+        return l;
+      });
+
+      const updatedHabit: Habit = {
+        ...currentHabit,
+        timeLogs: updatedLogs,
+        updatedAt: new Date().toISOString(),
+      };
+
+      updatedHabitForSync = updatedHabit;
+
+      const nextList = [...prev];
+      nextList[idx] = updatedHabit;
+
+      if (user) {
+        try {
+          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(nextList));
+        } catch (e) {}
+      } else {
+        try {
+          localStorage.setItem('timewise_habits', JSON.stringify(nextList));
+        } catch (e) {}
+      }
+
+      return nextList;
+    });
+
+    if (canSyncToFirestore && user && updatedHabitForSync) {
+      const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
+      setDoc(
+        habitDocRef,
+        sanitizeForFirestore({
+          ...(updatedHabitForSync as Habit),
+          userId: user.uid,
+        }),
+        { merge: true }
+      ).catch((err) => {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
+      });
+    }
+
+    showToast('Time log updated');
+  };
+
+  const startHabitTimer = (habitId: string) => {
+    const startTimestamp = Date.now();
+    const startTimeStr = getCurrentTimeString24h(new Date());
+    const timerData = { habitId, startTimestamp, startTimeStr };
+
+    setActiveHabitTimer(timerData);
+    try {
+      localStorage.setItem('timewise_active_habit_timer', JSON.stringify(timerData));
+    } catch (e) {}
+
+    const targetHabit = habits.find((h) => h.id === habitId);
+    showToast(`⏱️ Started timer for "${targetHabit?.title || 'Habit'}"`);
+  };
+
+  const stopHabitTimer = (
+    habitId: string,
+    notes?: string,
+    markCompleted: boolean = true
+  ): HabitTimeLog | null => {
+    if (!activeHabitTimer || activeHabitTimer.habitId !== habitId) {
+      return null;
+    }
+
+    const endTimestamp = Date.now();
+    const endTimeStr = getCurrentTimeString24h(new Date());
+    const elapsedMinutes = Math.max(
+      1,
+      Math.round((endTimestamp - activeHabitTimer.startTimestamp) / (1000 * 60))
+    );
+
+    const logData: Omit<HabitTimeLog, 'id' | 'createdAt'> = {
+      habitId,
+      date: getTodayDateString(),
+      startTime: activeHabitTimer.startTimeStr,
+      endTime: endTimeStr,
+      durationMinutes: elapsedMinutes,
+      notes: notes?.trim() || undefined,
+    };
+
+    addHabitTimeLog(habitId, logData, markCompleted);
+
+    setActiveHabitTimer(null);
+    try {
+      localStorage.removeItem('timewise_active_habit_timer');
+    } catch (e) {}
+
+    return {
+      ...logData,
+      id: `log_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+  };
+
+  const cancelHabitTimer = (habitId: string) => {
+    if (activeHabitTimer?.habitId === habitId) {
+      setActiveHabitTimer(null);
+      try {
+        localStorage.removeItem('timewise_active_habit_timer');
+      } catch (e) {}
+      showToast('Timer cancelled');
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -2179,6 +2467,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteHabit,
         toggleHabitDate,
         reorderHabits,
+        addHabitTimeLog,
+        deleteHabitTimeLog,
+        updateHabitTimeLog,
+        activeHabitTimer,
+        startHabitTimer,
+        stopHabitTimer,
+        cancelHabitTimer,
+        isTimeTrackerOpen,
+        activeTimeTrackingHabitId,
+        timeTrackerInitialDate,
+        openTimeTracker,
+        closeTimeTracker,
         updateSettings,
         resetToDemoData,
         clearAllUserData,

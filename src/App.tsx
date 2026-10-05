@@ -24,6 +24,7 @@ import { BookmarksView } from './components/bookmarks/BookmarksView';
 import { BookmarkFormModal } from './components/bookmarks/BookmarkFormModal';
 import { HabitsView } from './components/habits/HabitsView';
 import { HabitFormModal } from './components/habits/HabitFormModal';
+import { HabitTimeTrackerModal } from './components/habits/HabitTimeTrackerModal';
 import { SettingsView } from './components/settings/SettingsView';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { AuthModal } from './components/auth/AuthModal';
@@ -96,6 +97,7 @@ const AppContent: React.FC = () => {
       <ResourceFormModal />
       <BookmarkFormModal />
       <HabitFormModal />
+      <HabitTimeTrackerModal />
       <GlobalSearchModal />
       <AuthModal />
       <Toast />

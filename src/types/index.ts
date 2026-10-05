@@ -141,6 +141,17 @@ export interface WebsiteBookmark {
   updatedAt?: string;
 }
 
+export interface HabitTimeLog {
+  id: string;
+  habitId: string;
+  date: string; // ISO date 'YYYY-MM-DD'
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  durationMinutes: number; // Duration in minutes
+  notes?: string;
+  createdAt: string;
+}
+
 export interface Habit {
   id: string;
   userId?: string;
@@ -155,6 +166,7 @@ export interface Habit {
   startDate?: string; // ISO date 'YYYY-MM-DD' when the habit tracking starts
   completedDates: string[]; // array of ISO 'YYYY-MM-DD'
   targetDaysPerWeek?: number;
+  timeLogs?: HabitTimeLog[]; // Array of manual & dynamic time logs
   order?: number;
   archived?: boolean;
   createdAt: string;

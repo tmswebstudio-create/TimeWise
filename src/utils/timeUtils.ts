@@ -1,4 +1,4 @@
-import { Task } from '../types';
+import { Task, HabitTimeLog } from '../types';
 
 export function getTodayDateString(): string {
   const d = new Date();
@@ -220,5 +220,49 @@ export function getRelativeDayLabel(dateStr: string, todayStr: string = getToday
   if (diffDays === 1) return 'Tomorrow';
   if (diffDays < 0) return `${Math.abs(diffDays)}d ago`;
   return `In ${diffDays}d`;
+}
+
+export function getCurrentTimeString24h(d: Date = new Date()): string {
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+export function formatDurationHuman(minutes: number): string {
+  if (!minutes || minutes <= 0) return '0 mins';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} min${m === 1 ? '' : 's'}`;
+  if (m === 0) return `${h} hr${h === 1 ? '' : 's'}`;
+  return `${h} hr${h === 1 ? '' : 's'} ${m} min${m === 1 ? '' : 's'}`;
+}
+
+export function calculateDurationBetweenTimes(startTime: string, endTime: string): number {
+  return getTaskDurationMinutes(startTime, endTime);
+}
+
+export function getHabitTotalTrackedMinutes(timeLogs?: HabitTimeLog[]): number {
+  if (!timeLogs || timeLogs.length === 0) return 0;
+  return timeLogs.reduce((sum, log) => sum + (log.durationMinutes || 0), 0);
+}
+
+export function getHabitDateTrackedMinutes(timeLogs?: HabitTimeLog[], dateStr: string = getTodayDateString()): number {
+  if (!timeLogs || timeLogs.length === 0) return 0;
+  return timeLogs
+    .filter((log) => log.date === dateStr)
+    .reduce((sum, log) => sum + (log.durationMinutes || 0), 0);
+}
+
+export function getHabitTimeLogsForDate(timeLogs?: HabitTimeLog[], dateStr: string = getTodayDateString()): HabitTimeLog[] {
+  if (!timeLogs || timeLogs.length === 0) return [];
+  return timeLogs
+    .filter((log) => log.date === dateStr)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function getHabitDatesWithLogs(timeLogs?: HabitTimeLog[]): string[] {
+  if (!timeLogs || timeLogs.length === 0) return [];
+  const set = new Set(timeLogs.map((l) => l.date));
+  return Array.from(set).sort((a, b) => b.localeCompare(a));
 }
 

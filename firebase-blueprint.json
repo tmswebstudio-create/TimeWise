@@ -341,6 +341,10 @@
         "completedDates": {
           "type": "array"
         },
+        "timeLogs": {
+          "type": "array",
+          "description": "Daily manual and dynamic time tracking logs"
+        },
         "targetDaysPerWeek": {
           "type": "number"
         },

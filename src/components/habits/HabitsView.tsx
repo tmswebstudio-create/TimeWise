@@ -1,7 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { HabitCard } from './HabitCard';
-import { getTodayDateString } from '../../utils/timeUtils';
+import {
+  getTodayDateString,
+  formatDurationHuman,
+  formatSecondsToTime,
+  getHabitDateTrackedMinutes,
+  getHabitTotalTrackedMinutes,
+} from '../../utils/timeUtils';
 import { calculateHabitStreak, getWeekDayCircles, get30DayWindowCircles } from '../../utils/streakUtils';
 import {
   Flame,
@@ -17,16 +23,47 @@ import {
   FlameKindling,
   TrendingUp,
   X,
+  Clock,
+  Play,
+  Square,
+  RotateCcw,
 } from 'lucide-react';
 
 export const HabitsView: React.FC = () => {
-  const { habits, openHabitForm, addHabit, habitCategories, addCustomHabitCategory } = useApp();
+  const {
+    habits,
+    openHabitForm,
+    addHabit,
+    habitCategories,
+    addCustomHabitCategory,
+    activeHabitTimer,
+    openTimeTracker,
+    cancelHabitTimer,
+  } = useApp();
 
   const [filterTab, setFilterTab] = useState<'all' | 'pending_today' | 'done_today' | 'streaks'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'week' | 'recent7' | 'recent14' | 'recent30'>('week');
   const [weekOffset, setWeekOffset] = useState<number>(0);
   const [global30Offset, setGlobal30Offset] = useState<number>(0);
+
+  // Active Timer Ticker
+  const [activeTimerSeconds, setActiveTimerSeconds] = useState<number>(0);
+  useEffect(() => {
+    if (!activeHabitTimer) {
+      setActiveTimerSeconds(0);
+      return;
+    }
+    const update = () => {
+      const diff = Math.max(0, Math.floor((Date.now() - activeHabitTimer.startTimestamp) / 1000));
+      setActiveTimerSeconds(diff);
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [activeHabitTimer]);
+
+  const activeTimerHabit = habits.find((h) => h.id === activeHabitTimer?.habitId);
 
   // Inline Category Creator on Filter Bar
   const [isAddingCategoryBar, setIsAddingCategoryBar] = useState(false);
@@ -43,6 +80,11 @@ export const HabitsView: React.FC = () => {
 
   const totalCompletedAllTime = habits.reduce(
     (sum, h) => sum + (h.completedDates?.length || 0),
+    0
+  );
+
+  const totalHabitMinutesToday = habits.reduce(
+    (sum, h) => sum + getHabitDateTrackedMinutes(h.timeLogs, today),
     0
   );
 
@@ -141,8 +183,54 @@ export const HabitsView: React.FC = () => {
         </button>
       </div>
 
+      {/* Active Dynamic Timer Floating Banner */}
+      {activeHabitTimer && activeTimerHabit && (
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in slide-in-from-top-3 duration-300">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5 text-white animate-spin" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">
+                  Active Habit Stopwatch
+                </span>
+                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping inline-block" />
+              </div>
+              <h3 className="font-heading font-bold text-base text-white truncate mt-0.5">
+                {activeTimerHabit.title}
+              </h3>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            <span className="text-2xl sm:text-3xl font-black font-tabular tracking-tight bg-black/20 px-3 py-1 rounded-xl">
+              {formatSecondsToTime(activeTimerSeconds)}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => openTimeTracker(activeTimerHabit.id, today)}
+              className="px-3.5 py-2 text-xs font-bold bg-white text-emerald-900 hover:bg-emerald-50 rounded-xl shadow-xs cursor-pointer transition-all active:scale-95 flex items-center gap-1.5"
+            >
+              <Square className="w-3.5 h-3.5 fill-emerald-800" />
+              <span>Stop & Save Log</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => cancelHabitTimer(activeTimerHabit.id)}
+              className="p-2 text-emerald-200 hover:text-white hover:bg-white/10 rounded-xl cursor-pointer transition-colors"
+              title="Discard timer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 2. Motivational Banner & Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Card 1: Today's Completion */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
@@ -186,11 +274,25 @@ export const HabitsView: React.FC = () => {
           </p>
         </div>
 
-        {/* Card 3: Total Completed Days */}
+        {/* Card 3: Tracked Today Time */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
+            <span className="font-medium">Tracked Today</span>
+            <Clock className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-2xl font-bold font-tabular text-slate-900">
+              {formatDurationHuman(totalHabitMinutesToday)}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-400">Total practice time today</p>
+        </div>
+
+        {/* Card 4: Total Completed Days */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
             <span className="font-medium">Total Check-ins</span>
-            <Trophy className="w-4 h-4 text-blue-500" />
+            <Trophy className="w-4 h-4 text-indigo-500" />
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-2xl font-bold font-tabular text-slate-900">
@@ -201,11 +303,11 @@ export const HabitsView: React.FC = () => {
           <p className="mt-1 text-[11px] text-slate-400">Total historical logs</p>
         </div>
 
-        {/* Card 4: Active Habits Count */}
+        {/* Card 5: Active Habits Count */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
             <span className="font-medium">Active Habits</span>
-            <TrendingUp className="w-4 h-4 text-indigo-500" />
+            <TrendingUp className="w-4 h-4 text-violet-500" />
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-2xl font-bold font-tabular text-slate-900">
