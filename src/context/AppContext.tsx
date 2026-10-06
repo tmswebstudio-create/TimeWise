@@ -212,8 +212,48 @@ const sanitizeForFirestore = (obj: any): any => {
   return obj;
 };
 
+// Helper to synchronously load initial cached data for instant reload rendering
+const loadInitialCachedData = <T,>(keyPrefix: string, fallback: T): T => {
+  try {
+    const savedGuest = localStorage.getItem('timewise_local_guest');
+    const guestKey = savedGuest ? JSON.parse(savedGuest)?.uid : null;
+    const savedLast = localStorage.getItem('timewise_last_auth_user');
+    const lastUid = savedLast ? JSON.parse(savedLast)?.uid : null;
+    const currentUid = auth.currentUser?.uid || guestKey || lastUid;
+
+    const candidates = [
+      currentUid ? `timewise_${keyPrefix}_${currentUid}` : null,
+      `timewise_${keyPrefix}`,
+    ].filter(Boolean) as string[];
+
+    for (const key of candidates) {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed as unknown as T;
+        }
+      }
+    }
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(`timewise_${keyPrefix}_`)) {
+        const val = localStorage.getItem(k);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed as unknown as T;
+          }
+        }
+      }
+    }
+  } catch (e) {}
+  return fallback;
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, loading } = useAuth();
   const canSyncToFirestore = Boolean(
     user &&
     !isGuest &&
@@ -233,13 +273,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(timer);
   }, []);
 
-  // Primary Data State
-  // For new registered users, start completely clean with zero dummy data
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [goals, setGoals] = useState<LearningGoal[]>([]);
-  const [modules, setModules] = useState<Module[]>([]);
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [sessions, setSessions] = useState<LearningSession[]>([]);
+  // Primary Data State with instant synchronous local cache fallback
+  const [tasks, setTasks] = useState<Task[]>(() =>
+    loadInitialCachedData<Task[]>('tasks', generateInitialTasks())
+  );
+  const [goals, setGoals] = useState<LearningGoal[]>(() =>
+    loadInitialCachedData<LearningGoal[]>('goals', initialLearningGoals)
+  );
+  const [modules, setModules] = useState<Module[]>(() =>
+    loadInitialCachedData<Module[]>('modules', initialModules)
+  );
+  const [resources, setResources] = useState<Resource[]>(() =>
+    loadInitialCachedData<Resource[]>('resources', initialResources)
+  );
+  const [sessions, setSessions] = useState<LearningSession[]>(() =>
+    loadInitialCachedData<LearningSession[]>('sessions', initialSessions)
+  );
   const [settings, setSettings] = useState<UserSettings>(initialSettings);
   const [categories, setCategories] = useState<string[]>([
     'Computer Science',
@@ -332,7 +381,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Website Bookmarks State
-  const [bookmarks, setBookmarks] = useState<WebsiteBookmark[]>([]);
+  const [bookmarks, setBookmarks] = useState<WebsiteBookmark[]>(() =>
+    loadInitialCachedData<WebsiteBookmark[]>('bookmarks', initialBookmarks)
+  );
   const [isBookmarkFormOpen, setIsBookmarkFormOpen] = useState(false);
   const [bookmarkToEdit, setBookmarkToEdit] = useState<WebsiteBookmark | null>(null);
   const [preselectedBookmarkCategory, setPreselectedBookmarkCategory] = useState<string | null>(null);
@@ -363,16 +414,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   // Habits & Streaks State
-  const [habits, setHabits] = useState<Habit[]>(() => {
-    try {
-      const saved = localStorage.getItem('timewise_habits');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return [];
-  });
+  const [habits, setHabits] = useState<Habit[]>(() =>
+    loadInitialCachedData<Habit[]>('habits', generateInitialHabits())
+  );
   const [habitCategories, setHabitCategories] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('timewise_habit_categories');
@@ -472,15 +516,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // FIREBASE REAL-TIME FIRESTORE DATA SYNC
   // ----------------------------------------------------
   useEffect(() => {
+    // CRITICAL: Do NOT clear or wipe state while Auth state is still loading asynchronously!
+    if (loading) {
+      return;
+    }
+
     if (!user) {
-      // Unauthenticated state: Empty state for cleanliness
-      setTasks([]);
-      setGoals([]);
-      setModules([]);
-      setResources([]);
-      setSessions([]);
-      setBookmarks([]);
-      setHabits([]);
       setIsCloudSyncing(false);
       return;
     }
@@ -491,33 +532,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsCloudSyncing(false);
       const guestKey = user.uid;
       try {
-        const localTasks = localStorage.getItem(`timewise_tasks_${guestKey}`);
+        const localTasks = localStorage.getItem(`timewise_tasks_${guestKey}`) || localStorage.getItem('timewise_tasks');
         if (localTasks) setTasks(JSON.parse(localTasks));
-        else setTasks([]);
+        else {
+          const t = generateInitialTasks();
+          setTasks(t);
+          localStorage.setItem(`timewise_tasks_${guestKey}`, JSON.stringify(t));
+          localStorage.setItem('timewise_tasks', JSON.stringify(t));
+        }
 
-        const localGoals = localStorage.getItem(`timewise_goals_${guestKey}`);
+        const localGoals = localStorage.getItem(`timewise_goals_${guestKey}`) || localStorage.getItem('timewise_goals');
         if (localGoals) setGoals(JSON.parse(localGoals));
-        else setGoals([]);
+        else {
+          setGoals(initialLearningGoals);
+          localStorage.setItem(`timewise_goals_${guestKey}`, JSON.stringify(initialLearningGoals));
+          localStorage.setItem('timewise_goals', JSON.stringify(initialLearningGoals));
+        }
 
-        const localModules = localStorage.getItem(`timewise_modules_${guestKey}`);
+        const localModules = localStorage.getItem(`timewise_modules_${guestKey}`) || localStorage.getItem('timewise_modules');
         if (localModules) setModules(JSON.parse(localModules));
-        else setModules([]);
+        else {
+          setModules(initialModules);
+          localStorage.setItem(`timewise_modules_${guestKey}`, JSON.stringify(initialModules));
+          localStorage.setItem('timewise_modules', JSON.stringify(initialModules));
+        }
 
-        const localResources = localStorage.getItem(`timewise_resources_${guestKey}`);
+        const localResources = localStorage.getItem(`timewise_resources_${guestKey}`) || localStorage.getItem('timewise_resources');
         if (localResources) setResources(JSON.parse(localResources));
-        else setResources([]);
+        else {
+          setResources(initialResources);
+          localStorage.setItem(`timewise_resources_${guestKey}`, JSON.stringify(initialResources));
+          localStorage.setItem('timewise_resources', JSON.stringify(initialResources));
+        }
 
-        const localSessions = localStorage.getItem(`timewise_sessions_${guestKey}`);
+        const localSessions = localStorage.getItem(`timewise_sessions_${guestKey}`) || localStorage.getItem('timewise_sessions');
         if (localSessions) setSessions(JSON.parse(localSessions));
-        else setSessions([]);
+        else {
+          setSessions(initialSessions);
+          localStorage.setItem(`timewise_sessions_${guestKey}`, JSON.stringify(initialSessions));
+          localStorage.setItem('timewise_sessions', JSON.stringify(initialSessions));
+        }
 
-        const localBookmarks = localStorage.getItem(`timewise_bookmarks_${guestKey}`);
+        const localBookmarks = localStorage.getItem(`timewise_bookmarks_${guestKey}`) || localStorage.getItem('timewise_bookmarks');
         if (localBookmarks) setBookmarks(JSON.parse(localBookmarks));
-        else setBookmarks([]);
+        else {
+          setBookmarks(initialBookmarks);
+          localStorage.setItem(`timewise_bookmarks_${guestKey}`, JSON.stringify(initialBookmarks));
+          localStorage.setItem('timewise_bookmarks', JSON.stringify(initialBookmarks));
+        }
 
-        const localHabits = localStorage.getItem(`timewise_habits_${guestKey}`);
+        const localHabits = localStorage.getItem(`timewise_habits_${guestKey}`) || localStorage.getItem('timewise_habits');
         if (localHabits) setHabits(JSON.parse(localHabits));
-        else setHabits([]);
+        else {
+          const h = generateInitialHabits();
+          setHabits(h);
+          localStorage.setItem(`timewise_habits_${guestKey}`, JSON.stringify(h));
+          localStorage.setItem('timewise_habits', JSON.stringify(h));
+        }
       } catch (e) {
         console.error('Error reading local guest data:', e);
       }
@@ -555,11 +626,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           fetchedTasks.push(docSnap.data() as Task);
         });
-        fetchedTasks.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        setTasks(fetchedTasks);
+
+        if (fetchedTasks.length > 0) {
+          fetchedTasks.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          setTasks(fetchedTasks);
+          try {
+            localStorage.setItem(`timewise_tasks_${userId}`, JSON.stringify(fetchedTasks));
+            localStorage.setItem('timewise_tasks', JSON.stringify(fetchedTasks));
+          } catch (e) {}
+        } else {
+          // If Firestore is empty, check local storage
+          const localCache = localStorage.getItem(`timewise_tasks_${userId}`) || localStorage.getItem('timewise_tasks');
+          if (localCache) {
+            try {
+              const parsed = JSON.parse(localCache);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setTasks(parsed);
+                const batch = writeBatch(db);
+                parsed.forEach((t) => batch.set(doc(db, 'users', userId, 'tasks', t.id), sanitizeForFirestore({ ...t, userId })));
+                batch.commit().catch(() => {});
+                return;
+              }
+            } catch (e) {}
+          }
+          const starterTasks = generateInitialTasks();
+          setTasks(starterTasks);
+          try {
+            localStorage.setItem(`timewise_tasks_${userId}`, JSON.stringify(starterTasks));
+            localStorage.setItem('timewise_tasks', JSON.stringify(starterTasks));
+            const batch = writeBatch(db);
+            starterTasks.forEach((t) => batch.set(doc(db, 'users', userId, 'tasks', t.id), sanitizeForFirestore({ ...t, userId })));
+            batch.commit().catch(() => {});
+          } catch (e) {}
+        }
         setIsCloudSyncing(false);
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, `users/${userId}/tasks`)
+      (err) => {
+        const local = localStorage.getItem(`timewise_tasks_${userId}`) || localStorage.getItem('timewise_tasks');
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) setTasks(parsed);
+          } catch (e) {}
+        }
+        handleFirestoreError(err, OperationType.LIST, `users/${userId}/tasks`);
+      }
     );
 
     // 3. Sync Goals
@@ -571,10 +682,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           fetchedGoals.push(docSnap.data() as LearningGoal);
         });
-        fetchedGoals.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        setGoals(fetchedGoals);
+
+        if (fetchedGoals.length > 0) {
+          fetchedGoals.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          setGoals(fetchedGoals);
+          try {
+            localStorage.setItem(`timewise_goals_${userId}`, JSON.stringify(fetchedGoals));
+            localStorage.setItem('timewise_goals', JSON.stringify(fetchedGoals));
+          } catch (e) {}
+        } else {
+          const localCache = localStorage.getItem(`timewise_goals_${userId}`) || localStorage.getItem('timewise_goals');
+          if (localCache) {
+            try {
+              const parsed = JSON.parse(localCache);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setGoals(parsed);
+                const batch = writeBatch(db);
+                parsed.forEach((g) => batch.set(doc(db, 'users', userId, 'goals', g.id), sanitizeForFirestore({ ...g, userId })));
+                batch.commit().catch(() => {});
+                return;
+              }
+            } catch (e) {}
+          }
+          setGoals(initialLearningGoals);
+          try {
+            localStorage.setItem(`timewise_goals_${userId}`, JSON.stringify(initialLearningGoals));
+            localStorage.setItem('timewise_goals', JSON.stringify(initialLearningGoals));
+            const batch = writeBatch(db);
+            initialLearningGoals.forEach((g) => batch.set(doc(db, 'users', userId, 'goals', g.id), sanitizeForFirestore({ ...g, userId })));
+            batch.commit().catch(() => {});
+          } catch (e) {}
+        }
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, `users/${userId}/goals`)
+      (err) => {
+        const local = localStorage.getItem(`timewise_goals_${userId}`) || localStorage.getItem('timewise_goals');
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) setGoals(parsed);
+          } catch (e) {}
+        }
+        handleFirestoreError(err, OperationType.LIST, `users/${userId}/goals`);
+      }
     );
 
     // 4. Sync Modules
@@ -586,11 +735,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           fetchedModules.push(docSnap.data() as Module);
         });
-        // Sort modules by order
-        fetchedModules.sort((a, b) => a.order - b.order);
-        setModules(fetchedModules);
+
+        if (fetchedModules.length > 0) {
+          fetchedModules.sort((a, b) => a.order - b.order);
+          setModules(fetchedModules);
+          try {
+            localStorage.setItem(`timewise_modules_${userId}`, JSON.stringify(fetchedModules));
+            localStorage.setItem('timewise_modules', JSON.stringify(fetchedModules));
+          } catch (e) {}
+        } else {
+          const localCache = localStorage.getItem(`timewise_modules_${userId}`) || localStorage.getItem('timewise_modules');
+          if (localCache) {
+            try {
+              const parsed = JSON.parse(localCache);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setModules(parsed);
+                const batch = writeBatch(db);
+                parsed.forEach((m) => batch.set(doc(db, 'users', userId, 'modules', m.id), sanitizeForFirestore({ ...m, userId })));
+                batch.commit().catch(() => {});
+                return;
+              }
+            } catch (e) {}
+          }
+          setModules(initialModules);
+          try {
+            localStorage.setItem(`timewise_modules_${userId}`, JSON.stringify(initialModules));
+            localStorage.setItem('timewise_modules', JSON.stringify(initialModules));
+            const batch = writeBatch(db);
+            initialModules.forEach((m) => batch.set(doc(db, 'users', userId, 'modules', m.id), sanitizeForFirestore({ ...m, userId })));
+            batch.commit().catch(() => {});
+          } catch (e) {}
+        }
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, `users/${userId}/modules`)
+      (err) => {
+        const local = localStorage.getItem(`timewise_modules_${userId}`) || localStorage.getItem('timewise_modules');
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) setModules(parsed);
+          } catch (e) {}
+        }
+        handleFirestoreError(err, OperationType.LIST, `users/${userId}/modules`);
+      }
     );
 
     // 5. Sync Resources
@@ -602,10 +788,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           fetchedRes.push(docSnap.data() as Resource);
         });
-        fetchedRes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        setResources(fetchedRes);
+
+        if (fetchedRes.length > 0) {
+          fetchedRes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          setResources(fetchedRes);
+          try {
+            localStorage.setItem(`timewise_resources_${userId}`, JSON.stringify(fetchedRes));
+            localStorage.setItem('timewise_resources', JSON.stringify(fetchedRes));
+          } catch (e) {}
+        } else {
+          const localCache = localStorage.getItem(`timewise_resources_${userId}`) || localStorage.getItem('timewise_resources');
+          if (localCache) {
+            try {
+              const parsed = JSON.parse(localCache);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setResources(parsed);
+                const batch = writeBatch(db);
+                parsed.forEach((r) => batch.set(doc(db, 'users', userId, 'resources', r.id), sanitizeForFirestore({ ...r, userId })));
+                batch.commit().catch(() => {});
+                return;
+              }
+            } catch (e) {}
+          }
+          setResources(initialResources);
+          try {
+            localStorage.setItem(`timewise_resources_${userId}`, JSON.stringify(initialResources));
+            localStorage.setItem('timewise_resources', JSON.stringify(initialResources));
+            const batch = writeBatch(db);
+            initialResources.forEach((r) => batch.set(doc(db, 'users', userId, 'resources', r.id), sanitizeForFirestore({ ...r, userId })));
+            batch.commit().catch(() => {});
+          } catch (e) {}
+        }
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, `users/${userId}/resources`)
+      (err) => {
+        const local = localStorage.getItem(`timewise_resources_${userId}`) || localStorage.getItem('timewise_resources');
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) setResources(parsed);
+          } catch (e) {}
+        }
+        handleFirestoreError(err, OperationType.LIST, `users/${userId}/resources`);
+      }
     );
 
     // 6. Sync Sessions
@@ -617,9 +841,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           fetchedSessions.push(docSnap.data() as LearningSession);
         });
-        setSessions(fetchedSessions);
+
+        if (fetchedSessions.length > 0) {
+          setSessions(fetchedSessions);
+          try {
+            localStorage.setItem(`timewise_sessions_${userId}`, JSON.stringify(fetchedSessions));
+            localStorage.setItem('timewise_sessions', JSON.stringify(fetchedSessions));
+          } catch (e) {}
+        } else {
+          const localCache = localStorage.getItem(`timewise_sessions_${userId}`) || localStorage.getItem('timewise_sessions');
+          if (localCache) {
+            try {
+              const parsed = JSON.parse(localCache);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setSessions(parsed);
+                const batch = writeBatch(db);
+                parsed.forEach((s) => batch.set(doc(db, 'users', userId, 'sessions', s.id), sanitizeForFirestore({ ...s, userId })));
+                batch.commit().catch(() => {});
+                return;
+              }
+            } catch (e) {}
+          }
+          setSessions(initialSessions);
+          try {
+            localStorage.setItem(`timewise_sessions_${userId}`, JSON.stringify(initialSessions));
+            localStorage.setItem('timewise_sessions', JSON.stringify(initialSessions));
+          } catch (e) {}
+        }
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, `users/${userId}/sessions`)
+      (err) => {
+        const local = localStorage.getItem(`timewise_sessions_${userId}`) || localStorage.getItem('timewise_sessions');
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) setSessions(parsed);
+          } catch (e) {}
+        }
+        handleFirestoreError(err, OperationType.LIST, `users/${userId}/sessions`);
+      }
     );
 
     // 7. Sync Bookmarks
@@ -632,45 +891,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fetchedBookmarks.push(docSnap.data() as WebsiteBookmark);
         });
 
-        if (fetchedBookmarks.length === 0) {
-          // Check if local cache has bookmarks
-          const localCache = localStorage.getItem(`timewise_bookmarks_${userId}`);
+        if (fetchedBookmarks.length > 0) {
+          setBookmarks(fetchedBookmarks);
+          try {
+            localStorage.setItem(`timewise_bookmarks_${userId}`, JSON.stringify(fetchedBookmarks));
+            localStorage.setItem('timewise_bookmarks', JSON.stringify(fetchedBookmarks));
+          } catch (e) {}
+        } else {
+          const localCache = localStorage.getItem(`timewise_bookmarks_${userId}`) || localStorage.getItem('timewise_bookmarks');
           if (localCache) {
             try {
               const parsed = JSON.parse(localCache);
               if (Array.isArray(parsed) && parsed.length > 0) {
                 setBookmarks(parsed);
+                const batch = writeBatch(db);
+                parsed.forEach((bm) => batch.set(doc(db, 'users', userId, 'bookmarks', bm.id), sanitizeForFirestore({ ...bm, userId })));
+                batch.commit().catch(() => {});
                 return;
               }
             } catch (e) {}
           }
-
-          // Start with a clean list of bookmarks for new users
-          setBookmarks([]);
+          setBookmarks(initialBookmarks);
           try {
-            localStorage.setItem(`timewise_bookmarks_${userId}`, JSON.stringify([]));
-          } catch (e) {}
-        } else {
-          setBookmarks(fetchedBookmarks);
-          try {
-            localStorage.setItem(`timewise_bookmarks_${userId}`, JSON.stringify(fetchedBookmarks));
+            localStorage.setItem(`timewise_bookmarks_${userId}`, JSON.stringify(initialBookmarks));
+            localStorage.setItem('timewise_bookmarks', JSON.stringify(initialBookmarks));
+            const batch = writeBatch(db);
+            initialBookmarks.forEach((bm) => batch.set(doc(db, 'users', userId, 'bookmarks', bm.id), sanitizeForFirestore({ ...bm, userId })));
+            batch.commit().catch(() => {});
           } catch (e) {}
         }
       },
       (err) => {
-        handleFirestoreError(err, OperationType.LIST, `users/${userId}/bookmarks`);
-        // Fallback to local storage
-        const raw: string = localStorage.getItem(`timewise_bookmarks_${userId}`) || '';
+        const raw = localStorage.getItem(`timewise_bookmarks_${userId}`) || localStorage.getItem('timewise_bookmarks');
         if (raw) {
           try {
             const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              setBookmarks(parsed);
-              return;
-            }
+            if (Array.isArray(parsed) && parsed.length > 0) setBookmarks(parsed);
           } catch (e) {}
         }
-        setBookmarks([]);
+        handleFirestoreError(err, OperationType.LIST, `users/${userId}/bookmarks`);
       }
     );
 
@@ -684,43 +943,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fetchedHabits.push(docSnap.data() as Habit);
         });
 
-        if (fetchedHabits.length === 0) {
-          const localCache = localStorage.getItem(`timewise_habits_${userId}`);
-          let habitsToInit: Habit[] = [];
-          if (localCache) {
-            try {
-              const parsed = JSON.parse(localCache);
-              if (Array.isArray(parsed)) {
-                habitsToInit = parsed;
-              }
-            } catch (e) {}
-          }
-
-          setHabits(habitsToInit);
-          try {
-            localStorage.setItem(`timewise_habits_${userId}`, JSON.stringify(habitsToInit));
-          } catch (e) {}
-        } else {
+        if (fetchedHabits.length > 0) {
           fetchedHabits.sort((a, b) => (a.order || 0) - (b.order || 0));
           setHabits(fetchedHabits);
           try {
             localStorage.setItem(`timewise_habits_${userId}`, JSON.stringify(fetchedHabits));
+            localStorage.setItem('timewise_habits', JSON.stringify(fetchedHabits));
+          } catch (e) {}
+        } else {
+          const localCache = localStorage.getItem(`timewise_habits_${userId}`) || localStorage.getItem('timewise_habits');
+          if (localCache) {
+            try {
+              const parsed = JSON.parse(localCache);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setHabits(parsed);
+                const batch = writeBatch(db);
+                parsed.forEach((h) => batch.set(doc(db, 'users', userId, 'habits', h.id), sanitizeForFirestore({ ...h, userId })));
+                batch.commit().catch(() => {});
+                return;
+              }
+            } catch (e) {}
+          }
+          const starterHabits = generateInitialHabits();
+          setHabits(starterHabits);
+          try {
+            localStorage.setItem(`timewise_habits_${userId}`, JSON.stringify(starterHabits));
+            localStorage.setItem('timewise_habits', JSON.stringify(starterHabits));
+            const batch = writeBatch(db);
+            starterHabits.forEach((h) => batch.set(doc(db, 'users', userId, 'habits', h.id), sanitizeForFirestore({ ...h, userId })));
+            batch.commit().catch(() => {});
           } catch (e) {}
         }
       },
       (err) => {
-        handleFirestoreError(err, OperationType.LIST, `users/${userId}/habits`);
-        const raw = localStorage.getItem(`timewise_habits_${userId}`) || '';
+        const raw = localStorage.getItem(`timewise_habits_${userId}`) || localStorage.getItem('timewise_habits');
         if (raw) {
           try {
             const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              setHabits(parsed);
-              return;
-            }
+            if (Array.isArray(parsed) && parsed.length > 0) setHabits(parsed);
           } catch (e) {}
         }
-        setHabits([]);
+        handleFirestoreError(err, OperationType.LIST, `users/${userId}/habits`);
       }
     );
 
@@ -734,7 +997,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubBookmarks();
       unsubHabits();
     };
-  }, [user, isGuest, canSyncToFirestore]);
+  }, [user, isGuest, canSyncToFirestore, loading]);
 
   // Navigation Helper
   const setActiveView = (view: ActiveView, goalId?: string, moduleId?: string) => {
@@ -1975,53 +2238,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateHabit = (id: string, updates: Partial<Habit>) => {
-    let updatedHabitToSave: Habit | null = null;
+    let resolvedUpdatedHabit: Habit | null = null;
+    let nextListToSave: Habit[] = [];
+
     setHabits((prev) => {
       const next = prev.map((h) => {
         if (h.id === id) {
           const mod: Habit = { ...h, ...updates, updatedAt: new Date().toISOString() };
-          updatedHabitToSave = mod;
+          resolvedUpdatedHabit = mod;
           return mod;
         }
         return h;
       });
-      if (user) {
-        try {
-          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(next));
-        } catch (e) {}
-      } else {
-        try {
-          localStorage.setItem('timewise_habits', JSON.stringify(next));
-        } catch (e) {}
-      }
+      nextListToSave = next;
       return next;
     });
 
-    const targetHabit = updatedHabitToSave as Habit | null;
-    if (canSyncToFirestore && user && targetHabit) {
-      const habitDocRef = doc(db, 'users', user.uid, 'habits', id);
-      setDoc(habitDocRef, sanitizeForFirestore({ ...targetHabit, userId: user.uid }), { merge: true }).catch((err) => {
-        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${id}`);
-      });
+    const fallbackHabit = habits.find((h) => h.id === id);
+    const targetHabit: Habit | null =
+      resolvedUpdatedHabit ||
+      (fallbackHabit ? { ...fallbackHabit, ...updates, updatedAt: new Date().toISOString() } : null);
+
+    if (targetHabit) {
+      const finalNext =
+        nextListToSave.length > 0
+          ? nextListToSave
+          : habits.map((h) => (h.id === id ? targetHabit : h));
+
+      try {
+        if (user) {
+          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(finalNext));
+        }
+        localStorage.setItem('timewise_habits', JSON.stringify(finalNext));
+      } catch (e) {}
+
+      if (canSyncToFirestore && user) {
+        const habitDocRef = doc(db, 'users', user.uid, 'habits', id);
+        setDoc(habitDocRef, sanitizeForFirestore({ ...targetHabit, userId: user.uid }), { merge: true }).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${id}`);
+        });
+      }
     }
 
     showToast('Habit updated');
   };
 
   const deleteHabit = (id: string) => {
+    let nextListToSave: Habit[] = [];
     setHabits((prev) => {
       const next = prev.filter((h) => h.id !== id);
-      if (user) {
-        try {
-          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(next));
-        } catch (e) {}
-      } else {
-        try {
-          localStorage.setItem('timewise_habits', JSON.stringify(next));
-        } catch (e) {}
-      }
+      nextListToSave = next;
       return next;
     });
+
+    const finalNext =
+      nextListToSave.length > 0 ? nextListToSave : habits.filter((h) => h.id !== id);
+
+    try {
+      if (user) {
+        localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(finalNext));
+      }
+      localStorage.setItem('timewise_habits', JSON.stringify(finalNext));
+    } catch (e) {}
 
     if (canSyncToFirestore && user) {
       const habitDocRef = doc(db, 'users', user.uid, 'habits', id);
@@ -2034,6 +2312,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleHabitDate = (habitId: string, dateStr: string) => {
+    let resolvedUpdatedHabit: Habit | null = null;
+    let nextListToSave: Habit[] = [];
+
     setHabits((prev) => {
       const idx = prev.findIndex((h) => h.id === habitId);
       if (idx === -1) return prev;
@@ -2050,29 +2331,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: new Date().toISOString(),
       };
 
+      resolvedUpdatedHabit = updatedHabit;
+
       const nextList = [...prev];
       nextList[idx] = updatedHabit;
+      nextListToSave = nextList;
+      return nextList;
+    });
 
-      if (user) {
-        try {
-          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(nextList));
-        } catch (e) {}
-      } else {
-        try {
-          localStorage.setItem('timewise_habits', JSON.stringify(nextList));
-        } catch (e) {}
-      }
+    const fallbackHabit = habits.find((h) => h.id === habitId);
+    const targetHabit: Habit | null =
+      resolvedUpdatedHabit ||
+      (fallbackHabit
+        ? {
+            ...fallbackHabit,
+            completedDates: fallbackHabit.completedDates.includes(dateStr)
+              ? fallbackHabit.completedDates.filter((d) => d !== dateStr)
+              : [...fallbackHabit.completedDates, dateStr],
+            updatedAt: new Date().toISOString(),
+          }
+        : null);
+
+    if (targetHabit) {
+      const finalNext =
+        nextListToSave.length > 0
+          ? nextListToSave
+          : habits.map((h) => (h.id === habitId ? targetHabit : h));
+
+      try {
+        if (user) {
+          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(finalNext));
+        }
+        localStorage.setItem('timewise_habits', JSON.stringify(finalNext));
+      } catch (e) {}
 
       if (canSyncToFirestore && user) {
         const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
-        setDoc(habitDocRef, sanitizeForFirestore({ ...updatedHabit, userId: user.uid }), { merge: true }).catch((err) => {
+        setDoc(habitDocRef, sanitizeForFirestore({ ...targetHabit, userId: user.uid }), { merge: true }).catch((err) => {
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
         });
       }
 
+      const hasDate = fallbackHabit?.completedDates.includes(dateStr);
       showToast(hasDate ? `Unmarked for ${dateStr}` : `Marked done for ${dateStr}! 🔥`);
-      return nextList;
-    });
+    }
   };
 
   const reorderHabits = (sourceId: string, targetId: string) => {
@@ -2087,15 +2389,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       next.splice(tgtIdx, 0, moved);
       const reindexed = next.map((h, index) => ({ ...h, order: index + 1 }));
 
-      if (user) {
-        try {
+      try {
+        if (user) {
           localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(reindexed));
-        } catch (e) {}
-      } else {
-        try {
-          localStorage.setItem('timewise_habits', JSON.stringify(reindexed));
-        } catch (e) {}
-      }
+        }
+        localStorage.setItem('timewise_habits', JSON.stringify(reindexed));
+      } catch (e) {}
 
       if (canSyncToFirestore && user) {
         const batch = writeBatch(db);
@@ -2125,8 +2424,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    let updatedHabitForSync: Habit | null = null;
-
     setHabits((prev) => {
       const idx = prev.findIndex((h) => h.id === habitId);
       if (idx === -1) return prev;
@@ -2147,34 +2444,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: new Date().toISOString(),
       };
 
-      updatedHabitForSync = updatedHabit;
-
       const nextList = [...prev];
       nextList[idx] = updatedHabit;
 
-      if (user) {
-        try {
+      try {
+        if (user?.uid) {
           localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(nextList));
-        } catch (e) {}
-      } else {
-        try {
-          localStorage.setItem('timewise_habits', JSON.stringify(nextList));
-        } catch (e) {}
-      }
+        }
+        localStorage.setItem('timewise_habits', JSON.stringify(nextList));
+      } catch (e) {}
 
       return nextList;
     });
 
-    if (canSyncToFirestore && user && updatedHabitForSync) {
-      const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
-      setDoc(
-        habitDocRef,
-        sanitizeForFirestore({
-          ...(updatedHabitForSync as Habit),
-          userId: user.uid,
+    if (canSyncToFirestore && user) {
+      const current = habits.find((h) => h.id === habitId);
+      const updatedLogs = [newLog, ...(current?.timeLogs || [])];
+      let updatedCompletedDates = current?.completedDates || [];
+      if (markCompleted && !updatedCompletedDates.includes(logData.date)) {
+        updatedCompletedDates = [...updatedCompletedDates, logData.date];
+      }
+      const syncHabit: Habit = {
+        ...(current || {
+          id: habitId,
+          title: 'Habit',
+          category: 'General',
+          color: 'blue',
+          frequency: 'daily' as const,
+          createdAt: new Date().toISOString(),
         }),
-        { merge: true }
-      ).catch((err) => {
+        timeLogs: updatedLogs,
+        completedDates: updatedCompletedDates,
+        userId: user.uid,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
+      setDoc(habitDocRef, sanitizeForFirestore(syncHabit), { merge: true }).catch((err) => {
         handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
       });
     }
@@ -2184,8 +2490,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteHabitTimeLog = (habitId: string, logId: string) => {
-    let updatedHabitForSync: Habit | null = null;
-
     setHabits((prev) => {
       const idx = prev.findIndex((h) => h.id === habitId);
       if (idx === -1) return prev;
@@ -2199,44 +2503,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: new Date().toISOString(),
       };
 
-      updatedHabitForSync = updatedHabit;
-
       const nextList = [...prev];
       nextList[idx] = updatedHabit;
 
-      if (user) {
-        try {
+      try {
+        if (user?.uid) {
           localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(nextList));
-        } catch (e) {}
-      } else {
-        try {
-          localStorage.setItem('timewise_habits', JSON.stringify(nextList));
-        } catch (e) {}
-      }
+        }
+        localStorage.setItem('timewise_habits', JSON.stringify(nextList));
+      } catch (e) {}
 
       return nextList;
     });
 
-    if (canSyncToFirestore && user && updatedHabitForSync) {
-      const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
-      setDoc(
-        habitDocRef,
-        sanitizeForFirestore({
-          ...(updatedHabitForSync as Habit),
+    if (canSyncToFirestore && user) {
+      const current = habits.find((h) => h.id === habitId);
+      if (current) {
+        const updatedLogs = (current.timeLogs || []).filter((l) => l.id !== logId);
+        const syncHabit: Habit = {
+          ...current,
+          timeLogs: updatedLogs,
           userId: user.uid,
-        }),
-        { merge: true }
-      ).catch((err) => {
-        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
-      });
+          updatedAt: new Date().toISOString(),
+        };
+
+        const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
+        setDoc(habitDocRef, sanitizeForFirestore(syncHabit), { merge: true }).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
+        });
+      }
     }
 
     showToast('Time log removed');
   };
 
   const updateHabitTimeLog = (habitId: string, logId: string, updates: Partial<HabitTimeLog>) => {
-    let updatedHabitForSync: Habit | null = null;
-
     setHabits((prev) => {
       const idx = prev.findIndex((h) => h.id === habitId);
       if (idx === -1) return prev;
@@ -2255,36 +2556,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: new Date().toISOString(),
       };
 
-      updatedHabitForSync = updatedHabit;
-
       const nextList = [...prev];
       nextList[idx] = updatedHabit;
 
-      if (user) {
-        try {
+      try {
+        if (user?.uid) {
           localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(nextList));
-        } catch (e) {}
-      } else {
-        try {
-          localStorage.setItem('timewise_habits', JSON.stringify(nextList));
-        } catch (e) {}
-      }
+        }
+        localStorage.setItem('timewise_habits', JSON.stringify(nextList));
+      } catch (e) {}
 
       return nextList;
     });
 
-    if (canSyncToFirestore && user && updatedHabitForSync) {
-      const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
-      setDoc(
-        habitDocRef,
-        sanitizeForFirestore({
-          ...(updatedHabitForSync as Habit),
+    if (canSyncToFirestore && user) {
+      const current = habits.find((h) => h.id === habitId);
+      if (current) {
+        const updatedLogs = (current.timeLogs || []).map((l) =>
+          l.id === logId ? { ...l, ...updates } : l
+        );
+        const syncHabit: Habit = {
+          ...current,
+          timeLogs: updatedLogs,
           userId: user.uid,
-        }),
-        { merge: true }
-      ).catch((err) => {
-        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
-      });
+          updatedAt: new Date().toISOString(),
+        };
+
+        const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
+        setDoc(habitDocRef, sanitizeForFirestore(syncHabit), { merge: true }).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
+        });
+      }
     }
 
     showToast('Time log updated');

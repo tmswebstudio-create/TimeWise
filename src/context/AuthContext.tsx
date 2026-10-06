@@ -34,9 +34,34 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [isGuest, setIsGuest] = useState<boolean>(false);
+  const [user, setUser] = useState<User | null>(() => {
+    if (auth.currentUser) return auth.currentUser;
+    try {
+      const savedGuest = localStorage.getItem('timewise_local_guest');
+      if (savedGuest) return JSON.parse(savedGuest);
+      const savedLast = localStorage.getItem('timewise_last_auth_user');
+      if (savedLast) return JSON.parse(savedLast);
+    } catch (e) {}
+    return null;
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (auth.currentUser) return false;
+    try {
+      const savedGuest = localStorage.getItem('timewise_local_guest');
+      if (savedGuest) return false;
+      const savedLast = localStorage.getItem('timewise_last_auth_user');
+      if (savedLast) return false;
+    } catch (e) {}
+    return true;
+  });
+  const [isGuest, setIsGuest] = useState<boolean>(() => {
+    if (auth.currentUser) return auth.currentUser.isAnonymous;
+    try {
+      const savedGuest = localStorage.getItem('timewise_local_guest');
+      if (savedGuest) return true;
+    } catch (e) {}
+    return false;
+  });
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'signup'>('login');
@@ -46,9 +71,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (currentUser) {
         setUser(currentUser);
         setIsGuest(currentUser.isAnonymous);
-        localStorage.removeItem('timewise_local_guest');
+        if (currentUser.isAnonymous) {
+          localStorage.setItem(
+            'timewise_local_guest',
+            JSON.stringify({
+              uid: currentUser.uid,
+              email: currentUser.email || 'guest@timewise.local',
+              displayName: currentUser.displayName || 'Guest Learner',
+              isAnonymous: true,
+            })
+          );
+        } else {
+          localStorage.removeItem('timewise_local_guest');
+          localStorage.setItem(
+            'timewise_last_auth_user',
+            JSON.stringify({
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              isAnonymous: false,
+            })
+          );
+        }
       } else {
-        // Check if there is an active local guest session
+        // Check if there is an active local guest session or last auth user
         try {
           const savedGuest = localStorage.getItem('timewise_local_guest');
           if (savedGuest) {
@@ -56,8 +102,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(parsedGuest);
             setIsGuest(true);
           } else {
-            setUser(null);
-            setIsGuest(false);
+            const savedLastUser = localStorage.getItem('timewise_last_auth_user');
+            if (savedLastUser) {
+              const parsed = JSON.parse(savedLastUser);
+              setUser(parsed);
+              setIsGuest(false);
+            } else {
+              setUser(null);
+              setIsGuest(false);
+            }
           }
         } catch (e) {
           setUser(null);
@@ -230,6 +283,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
+        localStorage.setItem(
+          'timewise_local_guest',
+          JSON.stringify({
+            uid: guestAccount.uid,
+            email: 'guest@timewise.local',
+            displayName: 'Guest Learner',
+            isAnonymous: true,
+          })
+        );
         setUser(guestAccount);
         setIsGuest(true);
       } catch (anonErr) {
@@ -259,6 +321,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOutUser = async () => {
     try {
       localStorage.removeItem('timewise_local_guest');
+      localStorage.removeItem('timewise_last_auth_user');
       setUser(null);
       setIsGuest(false);
       await signOut(auth);
