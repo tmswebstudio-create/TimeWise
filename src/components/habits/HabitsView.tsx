@@ -150,6 +150,7 @@ export const HabitsView: React.FC = () => {
       color,
       icon,
       frequency: 'daily',
+      startDate: today,
       targetDaysPerWeek: 7,
       completedDates: [today],
     });

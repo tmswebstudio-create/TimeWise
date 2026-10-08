@@ -230,6 +230,7 @@ export const TaskFormModal: React.FC = () => {
       category: newStreakCategory || category || 'Learning',
       color: newStreakColor || 'amber',
       frequency: 'daily',
+      startDate: date || getTodayDateString(),
       completedDates: [],
       timeLogs: [],
     });

@@ -104,6 +104,7 @@ export const TaskDetailModal: React.FC = () => {
       category: newStreakCategory || task.category || 'Learning',
       color: newStreakColor || 'amber',
       frequency: 'daily',
+      startDate: task.date || getTodayDateString(),
       completedDates: task.status === 'completed' ? [task.date || getTodayDateString()] : [],
       timeLogs: [],
     });

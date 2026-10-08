@@ -105,13 +105,16 @@ export const HabitCard: React.FC<HabitCardProps> = ({ habit, viewMode, weekOffse
     return () => clearInterval(interval);
   }, [isThisHabitTiming, activeHabitTimer]);
 
-  // 30 days window data anchored to habit.startDate with previous/next navigation
+  // Resolved streak start date for this specific habit (strictly prevents any prior dates from appearing)
+  const streakStartDate = habit.startDate || (habit.createdAt ? habit.createdAt.slice(0, 10) : today);
+
+  // 30 days window data anchored to streakStartDate with previous/next navigation
   const active30Offset = viewMode === 'recent30' ? global30Offset : monthOffset;
   const window30Data = get30DayWindowCircles(
     active30Offset,
     habit.completedDates,
     today,
-    habit.startDate
+    streakStartDate
   );
 
   // Custom color hex if specified
@@ -238,17 +241,19 @@ export const HabitCard: React.FC<HabitCardProps> = ({ habit, viewMode, weekOffse
 
   const colors = colorMap[habit.color] || colorMap.indigo;
 
-  // Determine which day circles to show
+  // Determine which day circles to show - strictly anchored to streakStartDate so no previous dates are added
   let dayCircles: DayCircleItem[] = [];
+  let streakPeriodLabel = '';
   if (viewMode === 'week') {
-    const { days } = getWeekDayCircles(weekOffset, habit.completedDates, today);
+    const { days, weekLabel } = getWeekDayCircles(weekOffset, habit.completedDates, today, streakStartDate);
     dayCircles = days;
+    streakPeriodLabel = weekLabel;
   } else if (viewMode === 'recent14') {
-    dayCircles = getRecentDayCircles(14, habit.completedDates, today);
+    dayCircles = getRecentDayCircles(14, habit.completedDates, today, streakStartDate);
   } else if (viewMode === 'recent30') {
     dayCircles = window30Data.days;
   } else {
-    dayCircles = getRecentDayCircles(7, habit.completedDates, today);
+    dayCircles = getRecentDayCircles(7, habit.completedDates, today, streakStartDate);
   }
 
   const isCompletedToday = streak.isCompletedToday;
@@ -317,14 +322,14 @@ export const HabitCard: React.FC<HabitCardProps> = ({ habit, viewMode, weekOffse
               </span>
 
               {/* Start Date display - Bigger, prominent & clearly visible */}
-              {habit.startDate && (
+              {streakStartDate && (
                 <span
                   className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-blue-50 to-indigo-50/80 text-blue-800 border border-blue-200/90 rounded-xl font-tabular text-xs font-semibold shadow-2xs transition-all hover:border-blue-300"
-                  title={`Habit started on ${habit.startDate}`}
+                  title={`Habit started on ${streakStartDate}`}
                 >
                   <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0 stroke-[2.5]" />
                   <span>
-                    Started: <strong className="font-bold text-blue-900">{formatStartDate(habit.startDate, today)}</strong>
+                    Started: <strong className="font-bold text-blue-900">{formatStartDate(streakStartDate, today)}</strong>
                   </span>
                 </span>
               )}
@@ -544,12 +549,19 @@ export const HabitCard: React.FC<HabitCardProps> = ({ habit, viewMode, weekOffse
       {/* Date Circles Section (The Streak Maker) */}
       <div className="mb-2">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-            <span>Streak Circles</span>
-            <span className="text-[10px] font-normal text-slate-400">
-              (click any circle to toggle done)
-            </span>
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+              <span>Streak Circles</span>
+              <span className="text-[10px] font-normal text-slate-400">
+                (click any circle to toggle done)
+              </span>
+            </p>
+            {streakPeriodLabel && viewMode === 'week' && (
+              <span className="text-[10px] text-slate-500 font-medium font-tabular bg-slate-100 px-2 py-0.5 rounded-md">
+                {streakPeriodLabel}
+              </span>
+            )}
+          </div>
 
           <button
             type="button"
@@ -578,14 +590,28 @@ export const HabitCard: React.FC<HabitCardProps> = ({ habit, viewMode, weekOffse
 
             return (
               <div key={day.date} className="flex flex-col items-center gap-1">
-                {/* Day of Week Label */}
-                <span
-                  className={`text-[10px] font-medium uppercase tracking-wider ${
-                    isCurrentToday ? 'font-bold text-blue-600' : 'text-slate-400'
-                  }`}
-                >
-                  {day.dayOfWeekShort.slice(0, 3)}
-                </span>
+                {/* Day of Week Label with Streak Start indicator */}
+                <div className="flex items-center gap-0.5">
+                  <span
+                    className={`text-[10px] font-medium uppercase tracking-wider ${
+                      isCurrentToday
+                        ? 'font-bold text-blue-600'
+                        : day.isStreakStartDate
+                        ? 'font-bold text-amber-600'
+                        : 'text-slate-400'
+                    }`}
+                  >
+                    {day.dayOfWeekShort.slice(0, 3)}
+                  </span>
+                  {day.isStreakStartDate && (
+                    <span
+                      className="px-1 py-0.2 bg-amber-100 text-amber-700 font-bold text-[8px] rounded uppercase tracking-wider"
+                      title="Streak Start Date"
+                    >
+                      Start
+                    </span>
+                  )}
+                </div>
 
                 {/* Interactive Circle Button */}
                 <button
@@ -611,9 +637,13 @@ export const HabitCard: React.FC<HabitCardProps> = ({ habit, viewMode, weekOffse
                       ? `${customHex ? '' : colors.circleBg} text-white shadow-xs scale-100 active:scale-95 cursor-pointer ring-offset-2 ring-2 ${customHex ? 'ring-slate-400' : colors.ringColor}`
                       : isCurrentToday
                       ? 'bg-white border-2 border-blue-500 text-slate-700 hover:border-blue-600 hover:bg-blue-50/40 active:scale-95 cursor-pointer ring-2 ring-blue-200/60 shadow-xs'
+                      : day.isStreakStartDate
+                      ? 'bg-white border-2 border-amber-400 text-amber-800 hover:border-amber-500 hover:bg-amber-50/40 active:scale-95 cursor-pointer ring-1 ring-amber-200 shadow-2xs font-semibold'
                       : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50 active:scale-95 cursor-pointer'
                   }`}
-                  title={`${day.date}${isCurrentToday ? ' (Today)' : ''} - ${
+                  title={`${day.date}${isCurrentToday ? ' (Today)' : ''}${
+                    day.isStreakStartDate ? ' • Streak Start Date (Day 1)' : day.streakDayIndex ? ` • Day ${day.streakDayIndex}` : ''
+                  } - ${
                     isDone ? 'Completed! Click to undo' : isFuture ? 'Future date' : 'Click to mark done'
                   }`}
                 >
