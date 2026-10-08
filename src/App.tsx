@@ -32,6 +32,7 @@ import { AuthPage } from './components/auth/AuthPage';
 import { TimeWiseMark } from './components/common/TimeWiseLogo';
 import { Toast } from './components/common/Toast';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
@@ -108,11 +109,13 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppProvider>
+          <AppContent />
+        </AppProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

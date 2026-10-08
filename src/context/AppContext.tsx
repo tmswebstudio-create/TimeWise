@@ -108,6 +108,7 @@ interface AppContextType {
   addLinkToSubtask: (taskId: string, subtaskId: string, link: Omit<TaskLink, 'id'>) => void;
   deleteLinkFromSubtask: (taskId: string, subtaskId: string, linkId: string) => void;
   duplicateTask: (taskId: string) => void;
+  linkTaskToHabit: (taskId: string, habitId: string | null) => void;
   reorderTasks: (sourceId: string, targetId: string) => void;
   moveTaskToDate: (taskId: string, targetDate: string) => void;
   rescheduleIncompleteTasksToToday: (fromDate: string) => void;
@@ -170,6 +171,8 @@ interface AppContextType {
   updateHabit: (id: string, updates: Partial<Habit>) => void;
   deleteHabit: (id: string) => void;
   toggleHabitDate: (habitId: string, dateStr: string) => void;
+  markHabitCompletedForDate: (habitId: string, dateStr: string) => void;
+  unmarkHabitCompletedForDate: (habitId: string, dateStr: string) => void;
   reorderHabits: (sourceId: string, targetId: string) => void;
 
   // Habit Time Tracking (Dynamic live timer & manual logs by date)
@@ -943,26 +946,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fetchedHabits.push(docSnap.data() as Habit);
         });
 
-        if (fetchedHabits.length > 0) {
-          fetchedHabits.sort((a, b) => (a.order || 0) - (b.order || 0));
-          setHabits(fetchedHabits);
+        const localCache =
+          localStorage.getItem(`timewise_habits_${userId}`) || localStorage.getItem('timewise_habits');
+        let localHabits: Habit[] = [];
+        if (localCache) {
           try {
-            localStorage.setItem(`timewise_habits_${userId}`, JSON.stringify(fetchedHabits));
-            localStorage.setItem('timewise_habits', JSON.stringify(fetchedHabits));
+            const parsed = JSON.parse(localCache);
+            if (Array.isArray(parsed)) localHabits = parsed;
           } catch (e) {}
+        }
+
+        if (fetchedHabits.length > 0) {
+          // Reconcile remote and local habits so partial Firestore sync never wipes other habits or logs
+          const mergedMap = new Map<string, Habit>();
+          fetchedHabits.forEach((remoteH) => {
+            const localH = localHabits.find((lh) => lh.id === remoteH.id);
+            if (localH) {
+              const combinedLogsMap = new Map<string, HabitTimeLog>();
+              (localH.timeLogs || []).forEach((l) => combinedLogsMap.set(l.id, l));
+              (remoteH.timeLogs || []).forEach((l) => combinedLogsMap.set(l.id, l));
+              const combinedDates = Array.from(
+                new Set([...(remoteH.completedDates || []), ...(localH.completedDates || [])])
+              );
+
+              mergedMap.set(remoteH.id, {
+                ...remoteH,
+                timeLogs: Array.from(combinedLogsMap.values()),
+                completedDates: combinedDates,
+              });
+            } else {
+              mergedMap.set(remoteH.id, remoteH);
+            }
+          });
+
+          // Include any local habits that haven't synced to Firestore yet
+          const missingFromRemote: Habit[] = [];
+          localHabits.forEach((lh) => {
+            if (!mergedMap.has(lh.id)) {
+              mergedMap.set(lh.id, lh);
+              missingFromRemote.push(lh);
+            }
+          });
+
+          const finalHabits = Array.from(mergedMap.values()).sort(
+            (a, b) => (a.order || 0) - (b.order || 0)
+          );
+          setHabits(finalHabits);
+
+          try {
+            localStorage.setItem(`timewise_habits_${userId}`, JSON.stringify(finalHabits));
+            localStorage.setItem('timewise_habits', JSON.stringify(finalHabits));
+          } catch (e) {}
+
+          // Backfill missing local habits to Firestore
+          if (missingFromRemote.length > 0) {
+            const batch = writeBatch(db);
+            missingFromRemote.forEach((mh) => {
+              batch.set(
+                doc(db, 'users', userId, 'habits', mh.id),
+                sanitizeForFirestore({ ...mh, userId }),
+                { merge: true }
+              );
+            });
+            batch.commit().catch(() => {});
+          }
         } else {
-          const localCache = localStorage.getItem(`timewise_habits_${userId}`) || localStorage.getItem('timewise_habits');
-          if (localCache) {
-            try {
-              const parsed = JSON.parse(localCache);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setHabits(parsed);
-                const batch = writeBatch(db);
-                parsed.forEach((h) => batch.set(doc(db, 'users', userId, 'habits', h.id), sanitizeForFirestore({ ...h, userId })));
-                batch.commit().catch(() => {});
-                return;
-              }
-            } catch (e) {}
+          if (localHabits.length > 0) {
+            setHabits(localHabits);
+            const batch = writeBatch(db);
+            localHabits.forEach((h) =>
+              batch.set(doc(db, 'users', userId, 'habits', h.id), sanitizeForFirestore({ ...h, userId }))
+            );
+            batch.commit().catch(() => {});
+            return;
           }
           const starterHabits = generateInitialHabits();
           setHabits(starterHabits);
@@ -970,20 +1026,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localStorage.setItem(`timewise_habits_${userId}`, JSON.stringify(starterHabits));
             localStorage.setItem('timewise_habits', JSON.stringify(starterHabits));
             const batch = writeBatch(db);
-            starterHabits.forEach((h) => batch.set(doc(db, 'users', userId, 'habits', h.id), sanitizeForFirestore({ ...h, userId })));
+            starterHabits.forEach((h) =>
+              batch.set(doc(db, 'users', userId, 'habits', h.id), sanitizeForFirestore({ ...h, userId }))
+            );
             batch.commit().catch(() => {});
           } catch (e) {}
         }
       },
       (err) => {
-        const raw = localStorage.getItem(`timewise_habits_${userId}`) || localStorage.getItem('timewise_habits');
+        const raw =
+          localStorage.getItem(`timewise_habits_${userId}`) || localStorage.getItem('timewise_habits');
         if (raw) {
           try {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) setHabits(parsed);
           } catch (e) {}
         }
-        handleFirestoreError(err, OperationType.LIST, `users/${userId}/habits`);
+        console.warn('Firestore habits sync warning:', err);
       }
     );
 
@@ -1044,6 +1103,103 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ----------------------------------------------------
+  // HABIT & STREAK COMPLETION HELPERS
+  // ----------------------------------------------------
+  const markHabitCompletedForDate = (habitId: string, dateStr: string) => {
+    setHabits((prev) => {
+      const idx = prev.findIndex((h) => h.id === habitId);
+      if (idx === -1) return prev;
+
+      const currentHabit = prev[idx];
+      if (currentHabit.completedDates.includes(dateStr)) {
+        return prev;
+      }
+
+      const updatedDates = [...currentHabit.completedDates, dateStr];
+      const updatedHabit: Habit = {
+        ...currentHabit,
+        completedDates: updatedDates,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const nextList = [...prev];
+      nextList[idx] = updatedHabit;
+
+      try {
+        if (user?.uid) {
+          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(nextList));
+        }
+        localStorage.setItem('timewise_habits', JSON.stringify(nextList));
+      } catch (e) {}
+
+      return nextList;
+    });
+
+    if (canSyncToFirestore && user) {
+      const current = habits.find((h) => h.id === habitId);
+      if (current && !current.completedDates.includes(dateStr)) {
+        const syncHabit: Habit = {
+          ...current,
+          completedDates: [...current.completedDates, dateStr],
+          userId: user.uid,
+          updatedAt: new Date().toISOString(),
+        };
+        const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
+        setDoc(habitDocRef, sanitizeForFirestore(syncHabit), { merge: true }).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
+        });
+      }
+    }
+  };
+
+  const unmarkHabitCompletedForDate = (habitId: string, dateStr: string) => {
+    setHabits((prev) => {
+      const idx = prev.findIndex((h) => h.id === habitId);
+      if (idx === -1) return prev;
+
+      const currentHabit = prev[idx];
+      if (!currentHabit.completedDates.includes(dateStr)) {
+        return prev;
+      }
+
+      const updatedDates = currentHabit.completedDates.filter((d) => d !== dateStr);
+      const updatedHabit: Habit = {
+        ...currentHabit,
+        completedDates: updatedDates,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const nextList = [...prev];
+      nextList[idx] = updatedHabit;
+
+      try {
+        if (user?.uid) {
+          localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(nextList));
+        }
+        localStorage.setItem('timewise_habits', JSON.stringify(nextList));
+      } catch (e) {}
+
+      return nextList;
+    });
+
+    if (canSyncToFirestore && user) {
+      const current = habits.find((h) => h.id === habitId);
+      if (current && current.completedDates.includes(dateStr)) {
+        const syncHabit: Habit = {
+          ...current,
+          completedDates: current.completedDates.filter((d) => d !== dateStr),
+          userId: user.uid,
+          updatedAt: new Date().toISOString(),
+        };
+        const habitDocRef = doc(db, 'users', user.uid, 'habits', habitId);
+        setDoc(habitDocRef, sanitizeForFirestore(syncHabit), { merge: true }).catch((err) => {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/habits/${habitId}`);
+        });
+      }
+    }
+  };
+
+  // ----------------------------------------------------
   // TASK ACTIONS (Persisted to Firestore /users/{uid}/tasks)
   // ----------------------------------------------------
   const addTask = (newTaskData: Omit<Task, 'id' | 'createdAt'>): Task => {
@@ -1061,6 +1217,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem(`timewise_tasks_${user.uid}`, JSON.stringify(next));
         } catch (e) {}
       }
+      localStorage.setItem('timewise_tasks', JSON.stringify(next));
       return next;
     });
 
@@ -1071,11 +1228,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
-    showToast('Task added successfully');
+    // Auto-complete linked streak if created as completed
+    if (createdTask.status === 'completed' && createdTask.habitId) {
+      const taskDate = createdTask.date || getTodayDateString();
+      markHabitCompletedForDate(createdTask.habitId, taskDate);
+      const linkedHabit = habits.find((h) => h.id === createdTask.habitId);
+      showToast(`Task added & 🔥 Streak for "${linkedHabit?.title || 'Habit'}" marked done for ${taskDate}!`);
+    } else {
+      showToast('Task added successfully');
+    }
+
     return createdTask;
   };
 
   const updateTask = (id: string, updates: Partial<Task>) => {
+    const existingTask = tasks.find((t) => t.id === id);
+    const targetHabitId = updates.habitId !== undefined ? updates.habitId : existingTask?.habitId;
+    const taskDate = updates.date || existingTask?.date || getTodayDateString();
+
     setTasks((prev) => {
       const next = prev.map((t) => (t.id === id ? { ...t, ...updates } : t));
       if (user && !canSyncToFirestore) {
@@ -1083,6 +1253,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem(`timewise_tasks_${user.uid}`, JSON.stringify(next));
         } catch (e) {}
       }
+      localStorage.setItem('timewise_tasks', JSON.stringify(next));
       return next;
     });
 
@@ -1091,6 +1262,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateDoc(taskDocRef, sanitizeForFirestore(updates)).catch((err) =>
         handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/tasks/${id}`)
       );
+    }
+
+    // CONNECTION: Auto-complete / uncomplete linked streak for that day
+    if (updates.status === 'completed' && targetHabitId) {
+      markHabitCompletedForDate(targetHabitId, taskDate);
+    } else if (
+      updates.status &&
+      updates.status !== 'completed' &&
+      existingTask?.status === 'completed' &&
+      targetHabitId
+    ) {
+      const hasOtherCompleted = tasks.some(
+        (t) =>
+          t.id !== id &&
+          t.habitId === targetHabitId &&
+          (t.date || getTodayDateString()) === taskDate &&
+          t.status === 'completed'
+      );
+      if (!hasOtherCompleted) {
+        unmarkHabitCompletedForDate(targetHabitId, taskDate);
+      }
+    } else if (
+      updates.habitId &&
+      updates.habitId !== existingTask?.habitId &&
+      existingTask?.status === 'completed'
+    ) {
+      markHabitCompletedForDate(updates.habitId, taskDate);
     }
   };
 
@@ -1116,12 +1314,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Task deleted');
   };
 
+  const linkTaskToHabit = (taskId: string, habitId: string | null) => {
+    const task = tasks.find((t) => t.id === taskId);
+    updateTask(taskId, { habitId });
+    if (habitId) {
+      const h = habits.find((item) => item.id === habitId);
+      if (task && task.status === 'completed') {
+        const taskDate = task.date || getTodayDateString();
+        markHabitCompletedForDate(habitId, taskDate);
+      }
+      showToast(`Linked to streak: "${h?.title || 'Habit'}" 🔥`);
+    } else {
+      showToast('Streak unlinked from task');
+    }
+  };
+
   const toggleTaskComplete = (id: string) => {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
 
     const nextStatus = task.status === 'completed' ? 'todo' : 'completed';
     const completedAt = nextStatus === 'completed' ? new Date().toISOString() : null;
+    const taskDate = task.date || getTodayDateString();
 
     updateTask(id, {
       status: nextStatus,
@@ -1129,7 +1343,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     if (nextStatus === 'completed') {
-      showToast('Task marked complete! Great progress.');
+      if (task.habitId) {
+        markHabitCompletedForDate(task.habitId, taskDate);
+        const linkedHabit = habits.find((h) => h.id === task.habitId);
+        showToast(
+          `Task completed! 🔥 Streak for "${linkedHabit?.title || 'Habit'}" completed for ${taskDate}!`
+        );
+      } else {
+        showToast('Task marked complete! Great progress.');
+      }
+    } else {
+      if (task.habitId) {
+        const hasOtherCompleted = tasks.some(
+          (t) =>
+            t.id !== id &&
+            t.habitId === task.habitId &&
+            (t.date || getTodayDateString()) === taskDate &&
+            t.status === 'completed'
+        );
+        if (!hasOtherCompleted) {
+          unmarkHabitCompletedForDate(task.habitId, taskDate);
+        }
+        const linkedHabit = habits.find((h) => h.id === task.habitId);
+        showToast(`Task reopened • Streak for "${linkedHabit?.title || 'Habit'}" updated`);
+      }
     }
   };
 
@@ -2214,15 +2451,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setHabits((prev) => {
       const next = [...prev, newHabit];
-      if (user) {
-        try {
+      try {
+        if (user?.uid) {
           localStorage.setItem(`timewise_habits_${user.uid}`, JSON.stringify(next));
-        } catch (e) {}
-      } else {
-        try {
-          localStorage.setItem('timewise_habits', JSON.stringify(next));
-        } catch (e) {}
-      }
+        }
+        localStorage.setItem('timewise_habits', JSON.stringify(next));
+      } catch (e) {}
       return next;
     });
 
@@ -2716,6 +2950,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addLinkToSubtask,
         deleteLinkFromSubtask,
         duplicateTask,
+        linkTaskToHabit,
         reorderTasks,
         moveTaskToDate,
         rescheduleIncompleteTasksToToday,
@@ -2768,6 +3003,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateHabit,
         deleteHabit,
         toggleHabitDate,
+        markHabitCompletedForDate,
+        unmarkHabitCompletedForDate,
         reorderHabits,
         addHabitTimeLog,
         deleteHabitTimeLog,

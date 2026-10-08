@@ -17,6 +17,7 @@ import {
   Edit,
   Trash2,
   Calendar as CalendarIcon,
+  Flame,
 } from 'lucide-react';
 
 interface CalendarViewProps {
@@ -30,7 +31,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   selectedDate: externalDate,
   onDateChange,
 }) => {
-  const { tasks, openTaskForm, deleteTask, currentTime } = useApp();
+  const { tasks, habits, openTaskForm, deleteTask, currentTime } = useApp();
   const [internalDate, setInternalDate] = useState(getTodayDateString());
 
   const selectedDate = externalDate || internalDate;
@@ -212,7 +213,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <span className="truncate max-w-[200px]">{task.category}</span>
+                    <div className="flex items-center gap-1.5 truncate max-w-[200px]">
+                      <span className="truncate">{task.category}</span>
+                      {task.habitId && (() => {
+                        const lh = habits.find((h) => h.id === task.habitId);
+                        if (!lh) return null;
+                        const isDone = lh.completedDates?.includes(task.date || '');
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                              isDone ? 'bg-amber-100 text-amber-800' : 'bg-orange-50 text-orange-700'
+                            }`}
+                            title={`Streak: ${lh.title} (${isDone ? 'Completed' : 'Pending'})`}
+                          >
+                            <Flame className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                            <span className="truncate max-w-[80px]">{lh.title}</span>
+                          </span>
+                        );
+                      })()}
+                    </div>
                     {task.subtasks?.length > 0 && (
                       <span className="font-tabular text-[10px]">
                         {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length} subtasks

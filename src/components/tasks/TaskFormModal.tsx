@@ -11,9 +11,12 @@ import {
   ExternalLink,
   Tag,
   Check,
+  Flame,
+  Sparkles,
 } from 'lucide-react';
 import { Task, TaskPriority, TaskCategory, Subtask, TaskLink, LinkType } from '../../types';
 import { getTodayDateString, formatTaskScheduledDuration } from '../../utils/timeUtils';
+import { calculateHabitStreak } from '../../utils/streakUtils';
 
 export const TaskFormModal: React.FC = () => {
   const {
@@ -27,6 +30,8 @@ export const TaskFormModal: React.FC = () => {
     resources,
     categories,
     addCustomCategory,
+    habits,
+    addHabit,
   } = useApp();
 
   const [title, setTitle] = useState('');
@@ -38,7 +43,14 @@ export const TaskFormModal: React.FC = () => {
   const [goalId, setGoalId] = useState<string>('');
   const [moduleId, setModuleId] = useState<string>('');
   const [resourceId, setResourceId] = useState<string>('');
+  const [habitId, setHabitId] = useState<string>('');
   const [notes, setNotes] = useState('');
+
+  // Quick Streak Creation State
+  const [isCreatingNewStreak, setIsCreatingNewStreak] = useState(false);
+  const [newStreakTitle, setNewStreakTitle] = useState('');
+  const [newStreakCategory, setNewStreakCategory] = useState('Learning');
+  const [newStreakColor, setNewStreakColor] = useState('amber');
   
   // Custom Category State
   const [isAddingCustomCategory, setIsAddingCustomCategory] = useState(false);
@@ -70,6 +82,7 @@ export const TaskFormModal: React.FC = () => {
       setGoalId(taskToEdit.goalId || '');
       setModuleId(taskToEdit.moduleId || '');
       setResourceId(taskToEdit.resourceId || '');
+      setHabitId(taskToEdit.habitId || '');
       setNotes(taskToEdit.notes || '');
       setSubtasks(taskToEdit.subtasks || []);
       setTaskLinks(taskToEdit.links || []);
@@ -87,6 +100,7 @@ export const TaskFormModal: React.FC = () => {
       setGoalId('');
       setModuleId('');
       setResourceId('');
+      setHabitId('');
       setNotes('');
       setSubtasks([]);
       setTaskLinks([]);
@@ -95,6 +109,8 @@ export const TaskFormModal: React.FC = () => {
     setCustomCategoryInput('');
     setIsAddingTaskLink(false);
     setAddingLinkToSubtaskId(null);
+    setIsCreatingNewStreak(false);
+    setNewStreakTitle('');
   }, [taskToEdit, isTaskFormOpen]);
 
   if (!isTaskFormOpen) return null;
@@ -204,6 +220,25 @@ export const TaskFormModal: React.FC = () => {
     }
   };
 
+  const handleQuickCreateStreak = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedTitle = newStreakTitle.trim();
+    if (!trimmedTitle) return;
+
+    const newHabit = addHabit({
+      title: trimmedTitle,
+      category: newStreakCategory || category || 'Learning',
+      color: newStreakColor || 'amber',
+      frequency: 'daily',
+      completedDates: [],
+      timeLogs: [],
+    });
+
+    setHabitId(newHabit.id);
+    setIsCreatingNewStreak(false);
+    setNewStreakTitle('');
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -219,6 +254,7 @@ export const TaskFormModal: React.FC = () => {
         goalId: goalId || null,
         moduleId: moduleId || null,
         resourceId: resourceId || null,
+        habitId: habitId || null,
         notes,
         subtasks,
         links: taskLinks,
@@ -235,6 +271,7 @@ export const TaskFormModal: React.FC = () => {
         goalId: goalId || null,
         moduleId: moduleId || null,
         resourceId: resourceId || null,
+        habitId: habitId || null,
         subtasks,
         links: taskLinks,
         notes,
@@ -472,6 +509,167 @@ export const TaskFormModal: React.FC = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+          </div>
+
+          {/* Habit & Streak Connection & Quick Adding Option */}
+          <div className="p-3.5 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-slate-50 border border-amber-200/80 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
+                <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
+                <span>Connect to Habit / Streak 🔥</span>
+              </div>
+              {!isCreatingNewStreak && (
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingNewStreak(true)}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 hover:bg-amber-100/70 px-2 py-0.5 rounded-md transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Add New Streak</span>
+                </button>
+              )}
+            </div>
+
+            <p className="text-[11px] text-amber-700/90 leading-tight">
+              Completing this task on its scheduled date will automatically mark the linked streak completed for that day!
+            </p>
+
+            {/* Quick Streak Creator Form */}
+            {isCreatingNewStreak ? (
+              <div className="p-3 bg-white border border-amber-300 rounded-lg space-y-2.5 shadow-2xs animate-in fade-in">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-800">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    Create New Streak & Link
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingNewStreak(false)}
+                    className="text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] text-slate-500">Streak / Habit Name *</label>
+                  <input
+                    type="text"
+                    value={newStreakTitle}
+                    onChange={(e) => setNewStreakTitle(e.target.value)}
+                    placeholder="e.g. Daily LeetCode Practice, 30 Min Reading"
+                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:border-amber-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Category</label>
+                    <select
+                      value={newStreakCategory}
+                      onChange={(e) => setNewStreakCategory(e.target.value)}
+                      className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:outline-none focus:border-amber-500 bg-white"
+                    >
+                      {categories.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Color Theme</label>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      {[
+                        { id: 'amber', bg: 'bg-amber-500' },
+                        { id: 'blue', bg: 'bg-blue-500' },
+                        { id: 'emerald', bg: 'bg-emerald-500' },
+                        { id: 'purple', bg: 'bg-purple-500' },
+                        { id: 'rose', bg: 'bg-rose-500' },
+                      ].map((col) => (
+                        <button
+                          key={col.id}
+                          type="button"
+                          onClick={() => setNewStreakColor(col.id)}
+                          className={`w-5 h-5 rounded-full ${col.bg} transition-all ${
+                            newStreakColor === col.id ? 'ring-2 ring-offset-1 ring-slate-700 scale-110' : 'opacity-70 hover:opacity-100'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingNewStreak(false)}
+                    className="px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleQuickCreateStreak}
+                    disabled={!newStreakTitle.trim()}
+                    className="px-3 py-1 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-md transition-colors disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <Flame className="w-3 h-3 fill-white" />
+                    Create & Link
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <select
+                  value={habitId}
+                  onChange={(e) => setHabitId(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs border border-amber-300/80 rounded-md bg-white focus:outline-none focus:border-amber-500 text-slate-800"
+                >
+                  <option value="">None (No streak linked)</option>
+                  {habits.map((h) => {
+                    const streak = calculateHabitStreak(h.completedDates || [], date || getTodayDateString());
+                    return (
+                      <option key={h.id} value={h.id}>
+                        🔥 {h.title} ({streak.currentStreak}d streak • {h.category})
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {habitId && (() => {
+                  const linkedHabit = habits.find((h) => h.id === habitId);
+                  if (!linkedHabit) return null;
+                  const streak = calculateHabitStreak(linkedHabit.completedDates || [], date || getTodayDateString());
+                  const isDoneOnDate = (linkedHabit.completedDates || []).includes(date);
+
+                  return (
+                    <div className="mt-2 p-2 bg-white/90 border border-amber-200 rounded-lg flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1 rounded-md bg-amber-100 text-amber-700">
+                          <Flame className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                        </span>
+                        <div>
+                          <p className="font-semibold text-slate-800 leading-tight">
+                            {linkedHabit.title}
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            Current streak: <strong className="text-amber-600">{streak.currentStreak} {streak.currentStreak === 1 ? 'day' : 'days'}</strong>
+                            {isDoneOnDate ? ' • Already marked complete for this date' : ' • Will be marked complete when task is done'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setHabitId('')}
+                        className="text-[11px] text-slate-400 hover:text-red-600 transition-colors px-1.5 py-0.5"
+                      >
+                        Unlink
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

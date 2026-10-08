@@ -105,6 +105,9 @@
         "resourceId": {
           "type": "string"
         },
+        "habitId": {
+          "type": "string"
+        },
         "subtasks": {
           "type": "array"
         },

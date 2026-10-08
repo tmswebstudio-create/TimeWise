@@ -17,6 +17,7 @@ import {
   Edit,
   Trash2,
   GripVertical,
+  Flame,
 } from 'lucide-react';
 
 interface TaskCardProps {
@@ -50,6 +51,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     openTaskForm,
     goals,
     modules,
+    habits,
     setActiveView,
     currentTime,
   } = useApp();
@@ -63,6 +65,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const timing = calculateTaskTiming(task, currentTime);
   const goal = task.goalId ? goals.find((g) => g.id === task.goalId) : null;
   const moduleItem = task.moduleId ? modules.find((m) => m.id === task.moduleId) : null;
+  const linkedHabit = task.habitId ? habits.find((h) => h.id === task.habitId) : null;
+  const isStreakDoneOnDate = linkedHabit?.completedDates?.includes(task.date || '');
 
   const totalSubtasks = task.subtasks.length;
   const completedSubtasks = task.subtasks.filter((s) => s.completed).length;
@@ -199,6 +203,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
             {!goal && task.category && (
               <span className="text-slate-500 font-normal">{task.category}</span>
+            )}
+
+            {linkedHabit && (
+              <span
+                className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded border transition-colors ${
+                  isStreakDoneOnDate
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : 'bg-orange-50/70 text-orange-700 border-orange-200/60'
+                }`}
+                title={`Linked Streak: "${linkedHabit.title}" (${
+                  isStreakDoneOnDate ? 'Completed for this date' : 'Completing task marks streak done'
+                })`}
+              >
+                <Flame className={`w-3 h-3 ${isStreakDoneOnDate ? 'text-amber-500 fill-amber-500' : 'text-orange-400'}`} />
+                <span className="truncate max-w-[120px]">{linkedHabit.title}</span>
+                {isStreakDoneOnDate && <Check className="w-2.5 h-2.5 text-amber-600 stroke-[3]" />}
+              </span>
             )}
 
             <div className="ml-auto flex items-center gap-1.5">

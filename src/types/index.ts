@@ -30,6 +30,7 @@ export interface Task {
   goalId?: string | null;
   moduleId?: string | null;
   resourceId?: string | null;
+  habitId?: string | null;
   subtasks: Subtask[];
   links: TaskLink[];
   notes: string;
